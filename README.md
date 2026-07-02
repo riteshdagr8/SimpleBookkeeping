@@ -85,7 +85,9 @@ NEXTAUTH_SECRET=... APP_DATA_KEY=... docker compose up -d --build
 
 The Docker image uses Next.js `output: "standalone"` and a multi-stage
 build, so the runtime layer is small (under 200 MB). The SQLite DB and
-backup directory are exposed as named volumes.
+backup directory are exposed as named volumes. On first start the
+container automatically runs `prisma migrate deploy` and seeds the
+default tenant and demo users.
 
 ### Seeded users
 

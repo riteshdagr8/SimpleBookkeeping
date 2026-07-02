@@ -23,6 +23,8 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Ensure public/ exists in the builder so the runtime COPY --from=builder doesn't fail.
+RUN mkdir -p /app/public
 RUN npx prisma generate
 RUN npm run build
 
@@ -33,9 +35,9 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0
 
-# Non-root user.
+# Non-root user with a home directory so npm/npx can write caches/logs.
 RUN groupadd --system --gid 1001 nodejs \
- && useradd --system --uid 1001 --gid nodejs nextjs
+ && useradd --system --uid 1001 --gid nodejs --create-home --home-dir /home/nextjs nextjs
 
 # Copy only what standalone needs.
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
@@ -54,4 +56,8 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD node -e "require('http').get('http://127.0.0.1:3000/login',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"
 
-CMD ["node", "server.js"]
+# Copy and use an entrypoint that runs migrations + seed before starting the server.
+COPY --from=builder --chown=nextjs:nodejs /app/docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
+
+ENTRYPOINT ["./docker-entrypoint.sh"]

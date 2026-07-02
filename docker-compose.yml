@@ -23,12 +23,14 @@ services:
       DATABASE_URL: "file:/app/data/app.db"
       # Generate with: openssl rand -base64 32
       NEXTAUTH_SECRET: "${NEXTAUTH_SECRET:-change-me-in-env-or-set-now}"
-      NEXTAUTH_URL: "${NEXTAUTH_URL:-http://localhost:3000}"
+      NEXTAUTH_URL: "${NEXTAUTH_URL:-http://localhost:3001}"
       # 32 raw bytes, base64-encoded. Run `npm run crypto-init` to populate,
       # or generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-      APP_DATA_KEY: "${APP_DATA_KEY:-change-me-base64-32-bytes-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=}"
+      # Required: 32 raw bytes, base64-encoded. Generate with:
+      #   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+      APP_DATA_KEY: "${APP_DATA_KEY:?APP_DATA_KEY is required. Generate a 32-byte base64 key and set it in your environment or .env file.}"
     ports:
-      - "3000:3000"
+      - "3001:3000"
     volumes:
       - app-data:/app/data
       - app-backups:/app/backups
