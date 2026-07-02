@@ -1,0 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Default theme (Cloud White). Additional themes override the same vars below. */
+:root {
+  --bg: #ffffff;
+  --bg-subtle: #f5f8fb;
+  --surface: #ffffff;
+  --surface-2: #eef3f8;
+  --fg: #0b1220;
+  --fg-muted: #5a6779;
+  --primary: #4fa8e0;
+  --primary-fg: #ffffff;
+  --accent: #0e4a5c;
+  --accent-fg: #ffffff;
+  --border: #d6dee6;
+  --ring: #4fa8e0;
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-lg: 12px;
+}
+
+/* Per-theme overrides — populated in Phase 3 */
+:root[data-theme="emerald-prestige"] {
+  --bg: #f4efe6;
+  --bg-subtle: #e9e1d2;
+  --surface: #fbf7ee;
+  --surface-2: #ede4d1;
+  --fg: #0f4d3a;
+  --fg-muted: #4a6357;
+  --primary: #0f4d3a;
+  --primary-fg: #f4efe6;
+  --accent: #c9a24a;
+  --accent-fg: #1a1a1a;
+  --border: #d2c5a7;
+  --ring: #1f8f6b;
+  --success: #1f8f6b;
+  --warning: #c9a24a;
+  --danger: #a13c2f;
+}
+
+:root[data-theme="midnight-indigo"] {
+  --bg: #0b0f1e;
+  --bg-subtle: #11162a;
+  --surface: #131a36;
+  --surface-2: #1a2244;
+  --fg: #e8ecff;
+  --fg-muted: #97a0c8;
+  --primary: #5b5bff;
+  --primary-fg: #ffffff;
+  --accent: #3d2c8d;
+  --accent-fg: #ffffff;
+  --border: #25305a;
+  --ring: #5b5bff;
+  --success: #34d399;
+  --warning: #f59e0b;
+  --danger: #f87171;
+}
+
+:root[data-theme="charcoal-ember"] {
+  --bg: #0a0a0a;
+  --bg-subtle: #121212;
+  --surface: #1a1a1a;
+  --surface-2: #232323;
+  --fg: #f4f4f5;
+  --fg-muted: #a1a1aa;
+  --primary: #e0651f;
+  --primary-fg: #0a0a0a;
+  --accent: #e0651f;
+  --accent-fg: #0a0a0a;
+  --border: #2e2e2e;
+  --ring: #e0651f;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+}
+
+:root[data-theme="noir-gold"] {
+  --bg: #000000;
+  --bg-subtle: #0b0b0d;
+  --surface: #0e0e10;
+  --surface-2: #16161a;
+  --fg: #e9d8a6;
+  --fg-muted: #b0a684;
+  --primary: #b08922;
+  --primary-fg: #000000;
+  --accent: #e9d8a6;
+  --accent-fg: #000000;
+  --border: #2a2410;
+  --ring: #b08922;
+  --success: #6ab04c;
+  --warning: #e9d8a6;
+  --danger: #c0392b;
+}
+
+:root[data-theme="cloud-white"] {
+  --bg: #ffffff;
+  --bg-subtle: #f5f8fb;
+  --surface: #ffffff;
+  --surface-2: #eef3f8;
+  --fg: #0b1220;
+  --fg-muted: #5a6779;
+  --primary: #4fa8e0;
+  --primary-fg: #ffffff;
+  --accent: #0e4a5c;
+  --accent-fg: #ffffff;
+  --border: #d6dee6;
+  --ring: #4fa8e0;
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+}
+
+:root[data-theme="ocean-deep"] {
+  --bg: #061a2b;
+  --bg-subtle: #0a2540;
+  --surface: #0a2540;
+  --surface-2: #0e4a5c;
+  --fg: #d8f0ec;
+  --fg-muted: #9ec0bb;
+  --primary: #1e829a;
+  --primary-fg: #ffffff;
+  --accent: #a8d8d0;
+  --accent-fg: #061a2b;
+  --border: #143a4f;
+  --ring: #1e829a;
+  --success: #5fc28b;
+  --warning: #d4a64a;
+  --danger: #e26d6d;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  -webkit-font-smoothing: antialiased;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}

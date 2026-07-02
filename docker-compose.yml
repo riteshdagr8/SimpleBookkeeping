@@ -1,0 +1,44 @@
+# Run the app in a single container with persistent data and hourly backups.
+# Data and backups are stored in named volumes so they survive container restarts.
+#
+# Quick start:
+#   docker compose up -d --build
+#   open http://localhost:3000
+#
+# Default credentials (admin@firm.ca / admin123) — change after first login.
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        NODE_VERSION: "20"
+    image: simplebookkeeping:local
+    container_name: simplebookkeeping
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      DATABASE_URL: "file:/app/data/app.db"
+      # Generate with: openssl rand -base64 32
+      NEXTAUTH_SECRET: "${NEXTAUTH_SECRET:-change-me-in-env-or-set-now}"
+      NEXTAUTH_URL: "${NEXTAUTH_URL:-http://localhost:3000}"
+      # 32 raw bytes, base64-encoded. Run `npm run crypto-init` to populate,
+      # or generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+      APP_DATA_KEY: "${APP_DATA_KEY:-change-me-base64-32-bytes-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=}"
+    ports:
+      - "3000:3000"
+    volumes:
+      - app-data:/app/data
+      - app-backups:/app/backups
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/login',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  app-data:
+  app-backups:

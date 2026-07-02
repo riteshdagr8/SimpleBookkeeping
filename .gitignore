@@ -1,0 +1,41 @@
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# data
+data/
+backups/
+*.db
+*.db-journal
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# dev launcher pid/log files
+dev.pid
+dev.out.log
+dev.err.log
+dev.prev.out.log
+
+# typescript build cache
+tsconfig.tsbuildinfo
+
+# os
+.DS_Store
+Thumbs.db
+
+# editors
+.vscode/
+.idea/
+*.swp
+tsconfig.tsbuildinfo
