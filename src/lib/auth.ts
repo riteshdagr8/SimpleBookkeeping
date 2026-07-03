@@ -3,6 +3,7 @@ import "next-auth/jwt";
 import type { NextAuthOptions } from "next-auth";
 import { getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
 import { compare } from "bcryptjs";
@@ -95,8 +96,26 @@ export const authOptions: NextAuthOptions = {
 
 export async function requireUser() {
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  if (!session?.user?.id) {
     redirect("/login");
+  }
+  // Verify the user still exists in the DB. A session JWT can outlive the
+  // underlying user (DB reset, user deletion) and NextAuth will treat it as
+  // valid until the cookie expires. This guard catches that and forces a
+  // re-login by clearing the session cookies and redirecting.
+  const exists = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { id: true, active: true },
+  });
+  if (!exists || !exists.active) {
+    const cookieStore = await cookies();
+    for (const name of [
+      "next-auth.session-token",
+      "__Secure-next-auth.session-token",
+    ]) {
+      if (cookieStore.get(name)) cookieStore.delete(name);
+    }
+    redirect("/login?stale=1");
   }
   return session.user;
 }
