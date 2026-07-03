@@ -27,6 +27,9 @@ dev.out.log
 dev.err.log
 dev.prev.out.log
 
+# curl/debug artifacts
+cookies.txt
+
 # typescript build cache
 tsconfig.tsbuildinfo
 
