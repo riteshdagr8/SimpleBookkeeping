@@ -19,9 +19,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   }
   const client = await prisma.client.findFirst({ where: { id, tenantId: user.tenantId } });
   if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  const item = await prisma.folderChecklistItem.update({
+  const item = await prisma.folderChecklistItem.upsert({
     where: { clientId_itemName: { clientId: id, itemName: parsed.data.itemName } },
-    data: { created: parsed.data.created },
+    update: { created: parsed.data.created },
+    create: { clientId: id, itemName: parsed.data.itemName, created: parsed.data.created },
   });
   await writeAudit({
     tenantId: user.tenantId,

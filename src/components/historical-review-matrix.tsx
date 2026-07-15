@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FILING_TYPES, REVIEW_STATUSES, type FilingType, type ReviewStatus } from "@/lib/services/reviews";
+import { FILING_TYPES, FILING_TYPE_LABELS, REVIEW_STATUSES, REVIEW_STATUS_LABELS, type FilingType, type ReviewStatus } from "@/lib/review-status";
 
 interface ReviewRow {
   id: string;
@@ -93,7 +93,7 @@ export function HistoricalReviewMatrix({ clientId, years, reviews, reviewComplet
               <th className="py-2 pr-4 font-medium">Fiscal year</th>
               {FILING_TYPES.map((t) => (
                 <th key={t} className="px-4 py-2 font-medium">
-                  {t}
+                  {FILING_TYPE_LABELS[t] ?? t}
                 </th>
               ))}
             </tr>
@@ -115,7 +115,7 @@ export function HistoricalReviewMatrix({ clientId, years, reviews, reviewComplet
                       >
                         {REVIEW_STATUSES.map((s) => (
                           <option key={s} value={s}>
-                            {s}
+                            {REVIEW_STATUS_LABELS[s]}
                           </option>
                         ))}
                       </select>

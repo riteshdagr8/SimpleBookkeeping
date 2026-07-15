@@ -17,6 +17,7 @@ model Tenant {
   users   User[]
   clients Client[]
   audits  AuditLog[]
+  clientInteractions ClientInteraction[]
 }
 
 model User {
@@ -42,6 +43,7 @@ model Client {
   tenantId                  String
   fileNumber                String
   legalName                 String
+  contactName               String?
   businessNumber            String?
   entityType                String?
   fiscalYearEnd             DateTime
@@ -57,9 +59,12 @@ model Client {
   payrollApplicable         Boolean  @default(false)
   payrollFrequency          String?
   remitterType              String?
+  qbOnlinePayroll           Boolean  @default(false)
   threeMonthEligible        Boolean  @default(false)
   onboardingStatus          String   @default("Pending")
   reviewComplete            Boolean  @default(false)
+  reviewYears               Int      @default(3)
+  incorporationDocumentsReceived Boolean @default(false)
   notes                     String?
   active                    Boolean  @default(true)
   createdAt                 DateTime @default(now())
@@ -118,9 +123,125 @@ model FilingObligation {
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
+  payrollProcessing    PayrollProcessing?
+  gstHstProcessing     GSTHSTProcessing?
+  t2Processing         T2Processing?
+  ontarioARProcessing  OntarioARProcessing?
+  federalARProcessing  FederalARProcessing?
+  infoReturnProcessing InfoReturnProcessing?
+
   @@index([clientId])
   @@index([filingDueDate])
   @@index([status])
+}
+
+// =============================
+// Workflow processing tables
+// Each tracks the internal lifecycle of a FilingObligation through the
+// firm's workflow. Status is a per-workflow string (e.g. Payroll uses
+// Pending / Ready / Processed / Generated / Sent / Remittance / Completed).
+// =============================
+
+model PayrollProcessing {
+  id             String   @id @default(cuid())
+  obligationId   String   @unique
+  status         String   @default("Pending")
+  checklist      String   @default("[]")
+  employeeCount  Int?
+  totalRemittance Float?
+  employees      String?  // JSON array of {name, salary, netPay}
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  obligation FilingObligation @relation(fields: [obligationId], references: [id], onDelete: Cascade)
+}
+
+model GSTHSTProcessing {
+  id           String    @id @default(cuid())
+  obligationId String    @unique
+  status       String    @default("Pending")
+  checklist    String    @default("[]")
+  filingDate   DateTime?
+  amount       Float?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  obligation FilingObligation @relation(fields: [obligationId], references: [id], onDelete: Cascade)
+}
+
+model T2Processing {
+  id                 String    @id @default(cuid())
+  obligationId       String    @unique
+  status             String    @default("Pending")
+  checklist          String    @default("[]")
+  filingDate         DateTime?
+  taxBalance         Float?
+  nextFyeDate        DateTime?
+  nextFilingDeadline DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  obligation FilingObligation @relation(fields: [obligationId], references: [id], onDelete: Cascade)
+}
+
+model OntarioARProcessing {
+  id                  String    @id @default(cuid())
+  obligationId        String    @unique
+  status              String    @default("Pending")
+  checklist           String    @default("[]")
+  filingDate          DateTime?
+  confirmationNumber String?
+  fee                 Float?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  obligation FilingObligation @relation(fields: [obligationId], references: [id], onDelete: Cascade)
+}
+
+model FederalARProcessing {
+  id                  String    @id @default(cuid())
+  obligationId        String    @unique
+  status              String    @default("Pending")
+  checklist           String    @default("[]")
+  filingDate          DateTime?
+  confirmationNumber String?
+  companyKeyStatus    String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  obligation FilingObligation @relation(fields: [obligationId], references: [id], onDelete: Cascade)
+}
+
+model InfoReturnProcessing {
+  id                    String    @id @default(cuid())
+  obligationId          String    @unique
+  status                String    @default("Pending")
+  checklist             String    @default("[]")
+  filingDate            DateTime?
+  craConfirmationNumber String?
+  recipientCount        Int?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  obligation FilingObligation @relation(fields: [obligationId], references: [id], onDelete: Cascade)
+}
+
+model ClientInteraction {
+  id            String   @id @default(cuid())
+  tenantId      String
+  targetType    String
+  targetId      String
+  dateInitiated DateTime @default(now())
+  dateClosed    DateTime?
+  note          String?
+  status        String   @default("Pending")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, targetType, targetId])
+  @@index([targetType, targetId, status])
 }
 
 model AuditLog {

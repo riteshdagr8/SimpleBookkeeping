@@ -11,12 +11,13 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
   const { id } = await params;
   const client = await getClient(user.tenantId, id);
   if (!client) notFound();
+  if (!client.active && user.role !== "Admin") notFound();
 
-  await ensureReviewRows(client.id, client.fiscalYearEnd);
+  await ensureReviewRows(client.id, client.fiscalYearEnd, client.reviewYears);
   const refreshed = await getClient(user.tenantId, id);
   if (!refreshed) notFound();
 
-  const years = lastNCompletedFiscalYears(refreshed.fiscalYearEnd, 3);
+  const years = lastNCompletedFiscalYears(refreshed.fiscalYearEnd, refreshed.reviewYears);
 
   return (
     <div className="space-y-4">

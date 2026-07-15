@@ -1,11 +1,9 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { FILING_TYPES, REVIEW_STATUSES } from "@/lib/review-status";
 
-export const FILING_TYPES = ["T2", "HST", "Payroll", "T4", "T4A", "T5"] as const;
-export const REVIEW_STATUSES = ["Filed", "Overdue", "OutstandingBalance", "NA"] as const;
-
-export type FilingType = (typeof FILING_TYPES)[number];
-export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
+export { FILING_TYPES, REVIEW_STATUSES };
+export type { FilingType, ReviewStatus } from "@/lib/review-status";
 
 const reviewStatusEnum = z.enum(REVIEW_STATUSES);
 
@@ -21,9 +19,9 @@ export function lastNCompletedFiscalYears(fye: Date, n: number): number[] {
   return years;
 }
 
-export async function ensureReviewRows(clientId: string, fye: Date) {
-  const years = lastNCompletedFiscalYears(fye, 3);
-  for (const fiscalYear of years) {
+export async function ensureReviewRows(clientId: string, fye: Date, years: number) {
+  const range = lastNCompletedFiscalYears(fye, years);
+  for (const fiscalYear of range) {
     for (const filingType of FILING_TYPES) {
       await prisma.historicalReview.upsert({
         where: { clientId_fiscalYear_filingType: { clientId, fiscalYear, filingType } },
@@ -55,7 +53,7 @@ export type ReviewUpdate = z.infer<typeof reviewUpdateSchema>;
 export async function upsertReview(tenantId: string, clientId: string, input: ReviewUpdate) {
   const client = await prisma.client.findFirst({ where: { id: clientId, tenantId } });
   if (!client) return null;
-  await ensureReviewRows(clientId, client.fiscalYearEnd);
+  await ensureReviewRows(clientId, client.fiscalYearEnd, client.reviewYears);
   return prisma.historicalReview.upsert({
     where: {
       clientId_fiscalYear_filingType: {

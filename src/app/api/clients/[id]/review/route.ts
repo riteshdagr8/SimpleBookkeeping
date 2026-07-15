@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import {
   FILING_TYPES,
   REVIEW_STATUSES,
   ensureReviewRows,
-  listReviews,
   upsertReview,
 } from "@/lib/services/reviews";
 import { setReviewComplete } from "@/lib/services/clients";
@@ -51,15 +51,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 async function ensureReviewsAndGet(tenantId: string, id: string) {
-  const client = await (
-    await import("@/lib/prisma")
-  ).prisma.client.findFirst({ where: { id, tenantId }, include: { historicalReviews: true } });
+  const client = await prisma.client.findFirst({
+    where: { id, tenantId },
+    include: { historicalReviews: true },
+  });
   if (!client) return null;
-  await ensureReviewRows(client.id, client.fiscalYearEnd);
-  return (
-    await (await import("@/lib/prisma")).prisma.client.findFirst({
-      where: { id, tenantId },
-      include: { historicalReviews: { orderBy: [{ fiscalYear: "desc" }, { filingType: "asc" }] } },
-    })
-  );
+  await ensureReviewRows(client.id, client.fiscalYearEnd, client.reviewYears);
+  // Re-fetch to pick up the rows that ensureReviewRows just upserted.
+  return prisma.client.findFirst({
+    where: { id, tenantId },
+    include: { historicalReviews: { orderBy: [{ fiscalYear: "desc" }, { filingType: "asc" }] } },
+  });
 }

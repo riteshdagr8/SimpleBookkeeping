@@ -27,8 +27,8 @@ export const THEMES: Theme[] = [
   {
     id: "emerald-prestige",
     name: "Emerald Prestige",
-    description: "Deep emerald with gold. Luxury and authority.",
-    swatches: ["#0F4D3A", "#1F8F6B", "#C9A24A", "#F4EFE6"],
+    description: "Warm cream with deep emerald and gold. Refined and approachable.",
+    swatches: ["#F4EFE6", "#FBF7EE", "#0F4D3A", "#C9A24A"],
   },
   {
     id: "midnight-indigo",

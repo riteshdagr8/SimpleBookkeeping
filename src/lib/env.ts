@@ -1,5 +1,5 @@
-import path from "node:path";
 import { z } from "zod";
+import { resolveDatabaseUrl } from "@/lib/resolve-db-url";
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
@@ -13,20 +13,6 @@ const envSchema = z.object({
 export type Env = z.infer<typeof envSchema>;
 
 let cached: Env | null = null;
-
-/**
- * Prisma resolves `file:./...` URLs relative to the schema's directory, not
- * the CWD. That makes the database file path move when running from
- * .next/standalone, dev, or a packaged container. We rewrite such relative
- * paths to absolute paths anchored at process.cwd() so the same DATABASE_URL
- * works everywhere.
- */
-function resolveDatabaseUrl(raw: string): string {
-  if (!raw.startsWith("file:")) return raw;
-  const filePath = raw.slice("file:".length);
-  if (path.isAbsolute(filePath)) return raw;
-  return `file:${path.resolve(process.cwd(), filePath)}`;
-}
 
 export function env(): Env {
   if (cached) return cached;

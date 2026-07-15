@@ -6,8 +6,13 @@
  */
 
 import "dotenv/config";
+import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
+
+if (process.env.DATABASE_URL?.startsWith("file:") && !path.isAbsolute(process.env.DATABASE_URL.slice("file:".length))) {
+  process.env.DATABASE_URL = `file:${path.resolve(process.cwd(), process.env.DATABASE_URL.slice("file:".length))}`;
+}
 
 const prisma = new PrismaClient();
 

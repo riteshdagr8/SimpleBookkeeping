@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { format } from "date-fns";
-import { OBLIGATION_STATUS_VALUES } from "@/lib/services/obligations";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { workflowLinkForObligation } from "@/lib/workflows/route-map";
 
 export interface ObligationRow {
   id: string;
@@ -13,6 +12,7 @@ export interface ObligationRow {
   filingDueDate: string | null;
   paymentDueDate: string | null;
   status: string;
+  workflowStatus: string | null;
   amount: number | null;
   dateFiled: string | null;
   confirmationNumber: string | null;
@@ -20,48 +20,97 @@ export interface ObligationRow {
 }
 
 const STATUS_BADGE: Record<string, string> = {
-  NotStarted: "bg-bg-subtle text-fg-muted",
+  Pending: "bg-bg-subtle text-fg-muted",
   WaitingOnClient: "bg-warning/15 text-warning",
   InProgress: "bg-accent/15 text-accent",
   ReadyForReview: "bg-primary/15 text-primary",
-  Filed: "bg-success/15 text-success",
+  "Filed/Completed": "bg-success/15 text-success",
   Overdue: "bg-danger/15 text-danger",
 };
 
+const TYPE_LABELS: Record<string, string> = {
+  T2: "Corporate Tax Return",
+  HST: "GST/HST",
+  PayrollRemittance: "Payroll Remittance",
+  OntarioAnnualReturn: "Ontario Annual Return",
+  FederalAnnualReturn: "Federal Annual Return",
+};
+
+function typeLabel(t: string): string {
+  return TYPE_LABELS[t] ?? t;
+}
+
 function isOverdue(due: string | null, status: string) {
-  if (status === "Filed") return false;
+  if (status === "Filed/Completed" || status === "Completed") return false;
   if (!due) return false;
   const d = new Date(due);
   return d.getTime() < Date.now();
 }
 
-export function ObligationTable({ clientId, rows }: { clientId: string; rows: ObligationRow[] }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [savingId, setSavingId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [local, setLocal] = useState(rows);
+function statusLabel(s: string): string {
+  if (s === "WaitingOnClient") return "Waiting on Client";
+  return s;
+}
 
-  async function patch(id: string, body: Record<string, unknown>) {
-    setSavingId(id);
-    setError(null);
-    try {
-      const res = await fetch(`/api/clients/${clientId}/obligations/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error("Save failed");
-      startTransition(() => router.refresh());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Save failed");
-    } finally {
-      setSavingId(null);
+// Format a date string in UTC to avoid timezone-driven off-by-one-day display.
+// Stored dates are midnight UTC; using local time shifts them back a day for
+// users west of UTC.
+function formatUTC(iso: string | null, withYear: boolean): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const opts: Intl.DateTimeFormatOptions = {
+    timeZone: "UTC",
+    month: "short",
+    day: "numeric",
+    ...(withYear ? { year: "numeric" } : {}),
+  };
+  return new Intl.DateTimeFormat("en-US", opts).format(d);
+}
+
+export function ObligationTable({ clientId, rows }: { clientId: string; rows: ObligationRow[] }) {
+  const [navigating, setNavigating] = useState<string | null>(null);
+  const [local, setLocal] = useState(rows);
+  const [sortBy, setSortBy] = useState<string>("filingDue");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  // Bug2 fix: re-sync local state when the parent re-fetches (e.g., after
+  // Generate schedule). Without this, the table continues to show the
+  // initial-render rows even after the server component refreshes.
+  useEffect(() => {
+    setLocal(rows);
+  }, [rows]);
+
+  const sorted = useMemo(() => {
+    const dir = sortDir === "desc" ? -1 : 1;
+    return [...local].sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === "type") {
+        cmp = typeLabel(a.filingType).localeCompare(typeLabel(b.filingType));
+      } else if (sortBy === "period") {
+        const ap = a.periodStart ? new Date(a.periodStart).getTime() : 0;
+        const bp = b.periodStart ? new Date(b.periodStart).getTime() : 0;
+        cmp = ap - bp;
+      } else if (sortBy === "filingDue") {
+        const ad = a.filingDueDate ? new Date(a.filingDueDate).getTime() : 0;
+        const bd = b.filingDueDate ? new Date(b.filingDueDate).getTime() : 0;
+        cmp = ad - bd;
+      }
+      return cmp * dir;
+    });
+  }, [local, sortBy, sortDir]);
+
+  function toggleSort(field: string) {
+    if (sortBy === field) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(field);
+      setSortDir("asc");
     }
   }
 
-  function setField<K extends keyof ObligationRow>(id: string, key: K, value: ObligationRow[K]) {
-    setLocal((rows) => rows.map((r) => (r.id === id ? { ...r, [key]: value } : r)));
+  function sortIndicator(field: string): string {
+    if (sortBy !== field) return "";
+    return sortDir === "asc" ? " ▲" : " ▼";
   }
 
   return (
@@ -69,108 +118,73 @@ export function ObligationTable({ clientId, rows }: { clientId: string; rows: Ob
       <table className="min-w-full text-sm">
         <thead className="bg-bg-subtle text-left text-xs text-fg-muted">
           <tr>
-            <th className="px-3 py-2 font-medium">Type</th>
-            <th className="px-3 py-2 font-medium">Period</th>
-            <th className="px-3 py-2 font-medium">Filing due</th>
+            <th className="px-3 py-2 font-medium cursor-pointer hover:text-fg" onClick={() => toggleSort("type")}>
+              Type{sortIndicator("type")}
+            </th>
+            <th className="px-3 py-2 font-medium cursor-pointer hover:text-fg" onClick={() => toggleSort("period")}>
+              Period{sortIndicator("period")}
+            </th>
+            <th className="px-3 py-2 font-medium cursor-pointer hover:text-fg" onClick={() => toggleSort("filingDue")}>
+              Filing due{sortIndicator("filingDue")}
+            </th>
             <th className="px-3 py-2 font-medium">Payment due</th>
             <th className="px-3 py-2 font-medium">Status</th>
-            <th className="px-3 py-2 font-medium">Amount</th>
-            <th className="px-3 py-2 font-medium">Date filed</th>
-            <th className="px-3 py-2 font-medium">Confirmation</th>
           </tr>
         </thead>
         <tbody>
-          {local.length === 0 && (
+          {sorted.length === 0 && (
             <tr>
-              <td colSpan={8} className="px-3 py-6 text-center text-fg-muted">
+              <td colSpan={5} className="px-3 py-6 text-center text-fg-muted">
                 No obligations yet. Use &quot;Generate schedule&quot; on the client page.
               </td>
             </tr>
           )}
-          {local.map((r) => {
-            const overdue = isOverdue(r.filingDueDate, r.status);
+          {sorted.map((r) => {
+            const displayStatus = r.workflowStatus ?? r.status;
+            const overdue = isOverdue(r.filingDueDate, displayStatus);
             return (
               <tr key={r.id} className="border-t border-border">
-                <td className="px-3 py-2 font-medium text-fg">{r.filingType}</td>
+                <td className="px-3 py-2 font-medium text-fg">
+                  {(() => {
+                    const href = workflowLinkForObligation(r.filingType, r.id);
+                    if (!href) return typeLabel(r.filingType);
+                    const linkHref = clientId ? `${href}?from=schedule&clientId=${clientId}` : href;
+                    return (
+                      <Link
+                        href={linkHref}
+                        onClick={() => setNavigating(r.id)}
+                        className={`text-primary hover:underline ${navigating === r.id ? "opacity-50 pointer-events-none" : ""}`}
+                      >
+                        {navigating === r.id ? "Loading…" : typeLabel(r.filingType)}
+                      </Link>
+                    );
+                  })()}
+                </td>
                 <td className="px-3 py-2 text-fg-muted">
                   {r.periodStart && r.periodEnd
-                    ? `${format(new Date(r.periodStart), "MMM d")} – ${format(new Date(r.periodEnd), "MMM d")}`
+                    ? `${formatUTC(r.periodStart, false)} – ${formatUTC(r.periodEnd, true)}`
                     : "—"}
                 </td>
                 <td className={`px-3 py-2 ${overdue ? "text-danger font-medium" : "text-fg-muted"}`}>
-                  {r.filingDueDate ? format(new Date(r.filingDueDate), "MMM d, yyyy") : "—"}
+                  {r.filingDueDate ? formatUTC(r.filingDueDate, true) : "—"}
                 </td>
                 <td className="px-3 py-2 text-fg-muted">
-                  {r.paymentDueDate ? format(new Date(r.paymentDueDate), "MMM d, yyyy") : "—"}
+                  {r.paymentDueDate ? formatUTC(r.paymentDueDate, true) : "—"}
                 </td>
                 <td className="px-3 py-2">
                   <span
-                    className={`mr-2 inline-block rounded-full px-2 py-0.5 text-xs ${
-                      STATUS_BADGE[r.status] ?? "bg-bg-subtle text-fg-muted"
+                    className={`inline-block rounded-full px-2 py-0.5 text-xs ${
+                      STATUS_BADGE[displayStatus] ?? "bg-bg-subtle text-fg-muted"
                     }`}
                   >
-                    {r.status}
+                    {statusLabel(displayStatus)}
                   </span>
-                  <select
-                    value={r.status}
-                    disabled={pending && savingId === r.id}
-                    onChange={(e) => {
-                      setField(r.id, "status", e.target.value);
-                      patch(r.id, { status: e.target.value });
-                    }}
-                    className="rounded-md border border-border bg-bg-subtle px-2 py-1 text-xs text-fg focus:border-ring focus:ring-2 focus:ring-ring/30"
-                  >
-                    {OBLIGATION_STATUS_VALUES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={r.amount ?? ""}
-                    disabled={pending && savingId === r.id}
-                    onChange={(e) =>
-                      setField(r.id, "amount", e.target.value === "" ? null : Number(e.target.value))
-                    }
-                    onBlur={(e) =>
-                      patch(r.id, { amount: e.target.value === "" ? null : Number(e.target.value) })
-                    }
-                    className="w-24 rounded-md border border-border bg-bg-subtle px-2 py-1 text-xs text-fg"
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="date"
-                    value={r.dateFiled ? r.dateFiled.slice(0, 10) : ""}
-                    disabled={pending && savingId === r.id}
-                    onChange={(e) => {
-                      const v = e.target.value || null;
-                      setField(r.id, "dateFiled", v);
-                      patch(r.id, { dateFiled: v });
-                    }}
-                    className="rounded-md border border-border bg-bg-subtle px-2 py-1 text-xs text-fg"
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="text"
-                    value={r.confirmationNumber ?? ""}
-                    disabled={pending && savingId === r.id}
-                    onChange={(e) => setField(r.id, "confirmationNumber", e.target.value || null)}
-                    onBlur={(e) => patch(r.id, { confirmationNumber: e.target.value || null })}
-                    className="w-32 rounded-md border border-border bg-bg-subtle px-2 py-1 text-xs text-fg"
-                  />
                 </td>
               </tr>
             );
           })}
         </tbody>
       </table>
-      {error && <p className="px-3 py-2 text-xs text-danger">{error}</p>}
     </div>
   );
 }

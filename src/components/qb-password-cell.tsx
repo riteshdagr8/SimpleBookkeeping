@@ -79,6 +79,7 @@ export function QbPasswordCell({ clientId, hasPassword }: Props) {
             onClick={reveal}
             disabled={loading}
             className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2 py-1 text-xs text-fg hover:bg-bg-subtle disabled:opacity-50"
+            title="Reveal password"
           >
             <Eye className="h-3 w-3" />
             Reveal
@@ -91,6 +92,7 @@ export function QbPasswordCell({ clientId, hasPassword }: Props) {
             type="button"
             onClick={copy}
             className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2 py-1 text-xs text-fg hover:bg-bg-subtle"
+            title="Copy password to clipboard"
           >
             {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
             {copied ? "Copied" : "Copy"}
@@ -99,7 +101,7 @@ export function QbPasswordCell({ clientId, hasPassword }: Props) {
             type="button"
             onClick={clearReveal}
             className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2 py-1 text-xs text-fg hover:bg-bg-subtle"
-            title="Hide"
+            title="Hide password"
           >
             <EyeOff className="h-3 w-3" />
             Hide

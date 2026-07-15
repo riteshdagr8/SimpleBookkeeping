@@ -13,10 +13,32 @@ const dateOnly = z
 export const clientInputSchema = z.object({
   fileNumber: z.string().min(1).max(40),
   legalName: z.string().min(1).max(200),
-  businessNumber: z.string().max(40).optional().nullable(),
+  contactName: z.string().max(200).optional().nullable(),
+  incorporationDate: dateOnly
+    .optional()
+    .nullable()
+    .refine(
+      (d) => {
+        if (d == null) return true;
+        // Compare by end-of-day so "today" is still accepted (the date-only input
+        // represents midnight UTC; allowing all of today means comparing against
+        // the start of tomorrow).
+        const tomorrow = new Date();
+        tomorrow.setUTCHours(0, 0, 0, 0);
+        tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+        return d.getTime() < tomorrow.getTime();
+      },
+      { message: "Incorporation date cannot be in the future" }
+    ),
+  businessNumber: z
+    .string()
+    .regex(/^\d{9}$/, "Business number must be 9 digits")
+    .max(40)
+    .optional()
+    .nullable()
+    .or(z.literal("").transform(() => null)),
   entityType: z.string().max(40).optional().nullable(),
   fiscalYearEnd: dateOnly,
-  incorporationDate: dateOnly.optional().nullable(),
   incorporationJurisdiction: z.enum(["Federal", "Ontario"]).optional().nullable(),
   address: z.string().max(400).optional().nullable(),
   phone: z.string().max(40).optional().nullable(),
@@ -24,12 +46,22 @@ export const clientInputSchema = z.object({
   folderPath: z.string().max(1000).optional().nullable(),
   qbPassword: z.string().max(200).optional().nullable(),
   hstApplicable: z.boolean().optional(),
-  hstFrequency: z.enum(["Monthly", "Quarterly", "Annual"]).optional().nullable(),
+  hstFrequency: z.enum(["Monthly", "Quarterly", "Annual", "SelfEmployed"]).optional().nullable(),
   payrollApplicable: z.boolean().optional(),
-  payrollFrequency: z.string().max(40).optional().nullable(),
-  remitterType: z.enum(["Regular", "Quarterly"]).optional().nullable(),
+  payrollFrequency: z
+    .enum(["Weekly", "Bi-Weekly", "Semi-Monthly", "Monthly", "NA"])
+    .optional()
+    .nullable(),
+  remitterType: z
+    .enum(["Regular", "Quarterly", "Accelerated1", "Accelerated2"])
+    .optional()
+    .nullable(),
+  qbOnlinePayroll: z.boolean().optional(),
   threeMonthEligible: z.boolean().optional(),
+  reviewYears: z.number().int().min(3).max(6).optional(),
+  incorporationDocumentsReceived: z.boolean().optional(),
   notes: z.string().max(2000).optional().nullable(),
+  onboardingStatus: z.enum(["In Progress", "Onboarded", "Waiting on Documents", "Inactive"]).optional(),
 });
 
 export type ClientInput = z.infer<typeof clientInputSchema>;
@@ -39,6 +71,7 @@ function buildCreateData(input: ClientInput, tenantId: string): Prisma.ClientUnc
     tenantId,
     fileNumber: input.fileNumber.trim(),
     legalName: input.legalName.trim(),
+    contactName: input.contactName ?? null,
     businessNumber: input.businessNumber ?? null,
     entityType: input.entityType ?? null,
     fiscalYearEnd: input.fiscalYearEnd,
@@ -53,7 +86,11 @@ function buildCreateData(input: ClientInput, tenantId: string): Prisma.ClientUnc
     payrollApplicable: input.payrollApplicable ?? false,
     payrollFrequency: input.payrollApplicable ? input.payrollFrequency ?? null : null,
     remitterType: input.payrollApplicable ? input.remitterType ?? null : null,
+    qbOnlinePayroll: input.qbOnlinePayroll ?? false,
+    onboardingStatus: input.onboardingStatus ?? "In Progress",
     threeMonthEligible: input.threeMonthEligible ?? false,
+    reviewYears: input.reviewYears ?? 3,
+    incorporationDocumentsReceived: input.incorporationDocumentsReceived ?? false,
     notes: input.notes ?? null,
     qbPasswordEncrypted: resolveQb(input.qbPassword),
   };
@@ -63,6 +100,7 @@ function buildUpdateData(input: ClientInput): Prisma.ClientUpdateInput {
   return {
     fileNumber: input.fileNumber.trim(),
     legalName: input.legalName.trim(),
+    contactName: input.contactName ?? null,
     businessNumber: input.businessNumber ?? null,
     entityType: input.entityType ?? null,
     fiscalYearEnd: input.fiscalYearEnd,
@@ -77,7 +115,11 @@ function buildUpdateData(input: ClientInput): Prisma.ClientUpdateInput {
     payrollApplicable: input.payrollApplicable ?? false,
     payrollFrequency: input.payrollApplicable ? input.payrollFrequency ?? null : null,
     remitterType: input.payrollApplicable ? input.remitterType ?? null : null,
+    qbOnlinePayroll: input.qbOnlinePayroll ?? false,
+    onboardingStatus: input.onboardingStatus ?? "In Progress",
     threeMonthEligible: input.threeMonthEligible ?? false,
+    reviewYears: input.reviewYears ?? undefined,
+    incorporationDocumentsReceived: input.incorporationDocumentsReceived ?? undefined,
     notes: input.notes ?? null,
     qbPasswordEncrypted: resolveQb(input.qbPassword),
   };
@@ -91,7 +133,7 @@ function resolveQb(qb: string | null | undefined): string | null | undefined {
 
 export async function listClients(tenantId: string) {
   return prisma.client.findMany({
-    where: { tenantId, active: true },
+    where: { tenantId },
     orderBy: [{ fileNumber: "asc" }],
     select: {
       id: true,
@@ -101,6 +143,7 @@ export async function listClients(tenantId: string) {
       businessNumber: true,
       reviewComplete: true,
       onboardingStatus: true,
+      active: true,
     },
   });
 }
@@ -132,9 +175,21 @@ export async function createClient(tenantId: string, actorId: string, input: Cli
   return client;
 }
 
-export async function updateClient(tenantId: string, actorId: string, id: string, input: ClientInput) {
+export type UpdateClientResult =
+  | { ok: true; client: NonNullable<Awaited<ReturnType<typeof getClient>>> }
+  | { ok: false; reason: "not_found" | "review_locked" };
+
+export async function updateClient(
+  tenantId: string,
+  actorId: string,
+  id: string,
+  input: ClientInput
+): Promise<UpdateClientResult> {
   const existing = await prisma.client.findFirst({ where: { id, tenantId } });
-  if (!existing) return null;
+  if (!existing) return { ok: false, reason: "not_found" };
+  if (existing.reviewComplete && input.reviewYears !== undefined && input.reviewYears !== existing.reviewYears) {
+    return { ok: false, reason: "review_locked" };
+  }
   const data = buildUpdateData(input);
   // Strip undefined so Prisma doesn't try to set columns to undefined.
   const clean: Prisma.ClientUpdateInput = Object.fromEntries(
@@ -148,7 +203,7 @@ export async function updateClient(tenantId: string, actorId: string, id: string
     entity: "Client",
     entityId: client.id,
   });
-  return client;
+  return { ok: true, client: client as NonNullable<Awaited<ReturnType<typeof getClient>>> };
 }
 
 export async function deleteClient(tenantId: string, actorId: string, id: string) {
@@ -165,12 +220,31 @@ export async function deleteClient(tenantId: string, actorId: string, id: string
   return true;
 }
 
+export async function setClientActive(
+  tenantId: string,
+  actorId: string,
+  id: string,
+  active: boolean
+) {
+  const existing = await prisma.client.findFirst({ where: { id, tenantId } });
+  if (!existing) return null;
+  await prisma.client.update({ where: { id }, data: { active } });
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: active ? "CLIENT_REACTIVATED" : "CLIENT_DEACTIVATED",
+    entity: "Client",
+    entityId: id,
+  });
+  return { ok: true, active };
+}
+
 export async function setReviewComplete(tenantId: string, actorId: string, id: string, complete: boolean) {
   const existing = await prisma.client.findFirst({ where: { id, tenantId } });
   if (!existing) return null;
   await prisma.client.update({
     where: { id },
-    data: { reviewComplete: complete, onboardingStatus: complete ? "Complete" : "Pending" },
+    data: { reviewComplete: complete },
   });
   await writeAudit({
     tenantId,
