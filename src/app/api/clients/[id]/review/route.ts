@@ -53,7 +53,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 async function ensureReviewsAndGet(tenantId: string, id: string) {
   const client = await prisma.client.findFirst({
     where: { id, tenantId },
-    include: { historicalReviews: true },
+    select: { id: true, fiscalYearEnd: true, reviewYears: true, reviewComplete: true },
   });
   if (!client) return null;
   await ensureReviewRows(client.id, client.fiscalYearEnd, client.reviewYears);

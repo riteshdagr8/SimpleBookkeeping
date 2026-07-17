@@ -195,7 +195,14 @@ export async function updateClient(
   const clean: Prisma.ClientUpdateInput = Object.fromEntries(
     Object.entries(data).filter(([, v]) => v !== undefined)
   ) as Prisma.ClientUpdateInput;
-  const client = await prisma.client.update({ where: { id }, data: clean });
+  const client = await prisma.client.update({
+    where: { id },
+    data: clean,
+    include: {
+      folderChecklist: { orderBy: { itemName: "asc" } },
+      historicalReviews: { orderBy: [{ fiscalYear: "desc" }, { filingType: "asc" }] },
+    },
+  });
   await writeAudit({
     tenantId,
     actorId,
@@ -203,7 +210,7 @@ export async function updateClient(
     entity: "Client",
     entityId: client.id,
   });
-  return { ok: true, client: client as NonNullable<Awaited<ReturnType<typeof getClient>>> };
+  return { ok: true, client };
 }
 
 export async function deleteClient(tenantId: string, actorId: string, id: string) {

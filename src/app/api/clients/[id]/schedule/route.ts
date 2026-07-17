@@ -9,5 +9,5 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
-  return NextResponse.json({ count: result.count });
+  return NextResponse.json({ count: result.count, warnings: result.warnings });
 }

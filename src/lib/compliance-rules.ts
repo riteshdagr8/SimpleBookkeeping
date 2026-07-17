@@ -108,9 +108,23 @@ export function ontarioAnnualReturn(fye: Date): { filingDue: Date } {
 
 /** Federal Annual Return: due 60 days after incorporation anniversary. */
 export function federalAnnualReturn(incorporationDate: Date): { filingDue: Date } {
-  const d = new Date(incorporationDate.getTime());
-  d.setUTCFullYear(d.getUTCFullYear() + 1);
-  return { filingDue: addDays(d, 60) };
+  const today = new Date();
+
+  // Create the anniversary date in the current year
+  // (same month and day as incorporationDate, but current year)
+  const anniversary = new Date(Date.UTC(
+    today.getUTCFullYear(),
+    incorporationDate.getUTCMonth(),
+    incorporationDate.getUTCDate()
+  ));
+
+  // If this year's anniversary has already passed, use next year's
+  if (anniversary.getTime() < today.getTime()) {
+    anniversary.setUTCFullYear(anniversary.getUTCFullYear() + 1);
+  }
+
+  // Filing is due 60 days after the anniversary
+  return { filingDue: addDays(anniversary, 60) };
 }
 
 /** T4/T4A/T5 Information Returns: due the last day of February of the year following the work year. */

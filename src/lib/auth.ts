@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
 import { compare } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { writeAudit } from "@/lib/services/audit";
 
 declare module "next-auth" {
   interface Session {
@@ -51,12 +52,38 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(creds) {
         if (!creds?.email || !creds.password) return null;
+        const email = String(creds.email).toLowerCase().trim();
         const user = await prisma.user.findUnique({
-          where: { email: String(creds.email).toLowerCase().trim() },
+          where: { email },
         });
-        if (!user || !user.active) return null;
+        if (!user) {
+          console.warn(`[auth] Failed login attempt for unknown email: ${email}`);
+          return null;
+        }
+        if (!user.active) {
+          console.warn(`[auth] Failed login attempt for inactive user: ${email}`);
+          return null;
+        }
         const ok = await compare(String(creds.password), user.password);
-        if (!ok) return null;
+        if (!ok) {
+          await writeAudit({
+            tenantId: user.tenantId,
+            actorId: user.id,
+            action: "LOGIN_FAILED",
+            entity: "User",
+            entityId: user.id,
+            metadata: { email },
+          });
+          return null;
+        }
+        await writeAudit({
+          tenantId: user.tenantId,
+          actorId: user.id,
+          action: "LOGIN_OK",
+          entity: "User",
+          entityId: user.id,
+          metadata: { email },
+        });
         return {
           id: user.id,
           email: user.email,

@@ -184,14 +184,13 @@ export async function generateObligationsForClient(
   if (jur === "Federal" && client.incorporationDate) {
     const far = federalAnnualReturn(client.incorporationDate);
     if (inWindow(far.filingDue)) {
-      const anniversary = new Date(client.incorporationDate);
-      anniversary.setUTCFullYear(anniversary.getUTCFullYear() + 1);
-      const periodEnd = new Date(anniversary);
-      periodEnd.setUTCDate(periodEnd.getUTCDate() + 60);
+      const periodEnd = far.filingDue;
+      const periodStart = new Date(periodEnd);
+      periodStart.setUTCDate(periodStart.getUTCDate() - 60);
       rows.push({
         clientId,
         filingType: "FederalAnnualReturn",
-        periodStart: anniversary,
+        periodStart,
         periodEnd,
         filingDueDate: far.filingDue,
         status: "Pending",
@@ -267,7 +266,26 @@ export async function generateObligationsForClient(
     metadata: { count: rows.length },
   });
 
-  return { count: rows.length };
+  const warnings: string[] = [];
+
+  // Check for configs that silently produce zero obligations.
+  const hstApplied = client.hstApplicable && client.hstFrequency;
+  const hasHstRows = rows.some((r) => r.filingType === "HST");
+  if (hstApplied && !hasHstRows && client.hstFrequency === "SelfEmployed") {
+    warnings.push(
+      "Self-Employed HST requires a December 31 fiscal year-end. No HST periods were generated for the current FYE."
+    );
+  }
+
+  const payrollApplied = client.payrollApplicable && client.remitterType;
+  const hasPayrollRows = rows.some((r) => r.filingType === "PayrollRemittance");
+  if (payrollApplied && !hasPayrollRows && (client.remitterType === "Accelerated1" || client.remitterType === "Accelerated2")) {
+    warnings.push(
+      `Payroll remittance math for ${client.remitterType} is not yet implemented. No payroll rows were generated.`
+    );
+  }
+
+  return { count: rows.length, warnings };
 }
 
 export async function updateObligation(

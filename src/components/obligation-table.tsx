@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { workflowLinkForObligation } from "@/lib/workflows/route-map";
 
@@ -69,20 +69,12 @@ function formatUTC(iso: string | null, withYear: boolean): string {
 
 export function ObligationTable({ clientId, rows }: { clientId: string; rows: ObligationRow[] }) {
   const [navigating, setNavigating] = useState<string | null>(null);
-  const [local, setLocal] = useState(rows);
   const [sortBy, setSortBy] = useState<string>("filingDue");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  // Bug2 fix: re-sync local state when the parent re-fetches (e.g., after
-  // Generate schedule). Without this, the table continues to show the
-  // initial-render rows even after the server component refreshes.
-  useEffect(() => {
-    setLocal(rows);
-  }, [rows]);
-
   const sorted = useMemo(() => {
     const dir = sortDir === "desc" ? -1 : 1;
-    return [...local].sort((a, b) => {
+    return [...rows].sort((a, b) => {
       let cmp = 0;
       if (sortBy === "type") {
         cmp = typeLabel(a.filingType).localeCompare(typeLabel(b.filingType));
@@ -97,7 +89,7 @@ export function ObligationTable({ clientId, rows }: { clientId: string; rows: Ob
       }
       return cmp * dir;
     });
-  }, [local, sortBy, sortDir]);
+  }, [rows, sortBy, sortDir]);
 
   function toggleSort(field: string) {
     if (sortBy === field) {

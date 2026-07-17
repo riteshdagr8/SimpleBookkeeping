@@ -15,15 +15,20 @@ export function ScheduleActions({
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[] | null>(null);
 
   async function generate() {
     setError(null);
+    setWarnings(null);
     setBusy(true);
     try {
       const res = await fetch(`/api/clients/${clientId}/schedule`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? "Generate failed");
+      }
+      if (data.warnings?.length > 0) {
+        setWarnings(data.warnings);
       }
       startTransition(() => router.refresh());
     } catch (e) {
@@ -34,7 +39,14 @@ export function ScheduleActions({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-col gap-2 items-end">
+      {warnings && (
+        <div className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning max-w-md">
+          {warnings.map((w, i) => (
+            <p key={i}>{w}</p>
+          ))}
+        </div>
+      )}
       {error && <span className="text-xs text-danger">{error}</span>}
       <button
         type="button"
