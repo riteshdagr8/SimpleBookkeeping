@@ -274,9 +274,6 @@ export function ClientForm({
               {showQb ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
-          <p className="mt-1 text-xs text-fg-muted">
-            Stored encrypted (AES-256-GCM){initial.id ? ". Leave blank to keep the existing password." : ""}
-          </p>
         </div>
       </div>
 
@@ -364,33 +361,35 @@ export function ClientForm({
         </fieldset>
       </div>
 
-      {/* Historical review + Documents on same line */}
-      <div className="flex flex-wrap items-center gap-4">
-        <label className="inline-flex items-center gap-2 text-sm">
-          <span className="font-medium text-fg">Historical years to review</span>
-          <select
-            value={String(form.reviewYears)}
-            onChange={(e) => set("reviewYears", (Number(e.target.value) as 3 | 4 | 5 | 6))}
-            className="rounded-md border border-border bg-bg-subtle px-2 py-1.5 text-sm text-fg outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
-          >
-            {["3", "4", "5", "6"].map((o) => (
-              <option key={o} value={o}>{o}</option>
-            ))}
-          </select>
-        </label>
-        {reviewComplete && (
-          <p className="text-xs text-warning">Review is complete — change year count requires reopening review.</p>
-        )}
-        <label className="inline-flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={form.incorporationDocumentsReceived}
-            onChange={(e) => set("incorporationDocumentsReceived", e.target.checked)}
-            className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
-          />
-          Incorporation documents received?
-        </label>
-      </div>
+      {/* Historical review + Documents — aligned with Address/QB columns */}
+      <fieldset className="rounded-lg border border-border px-3 py-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-medium text-fg whitespace-nowrap">Historical years to review</span>
+            <select
+              value={String(form.reviewYears)}
+              onChange={(e) => set("reviewYears", (Number(e.target.value) as 3 | 4 | 5 | 6))}
+              className="rounded-md border border-border bg-bg-subtle px-2 py-1.5 text-sm text-fg outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+            >
+              {["3", "4", "5", "6"].map((o) => (
+                <option key={o} value={o}>{o}</option>
+              ))}
+            </select>
+            {reviewComplete && (
+              <p className="text-xs text-warning">Review is complete — change requires reopening review.</p>
+            )}
+          </div>
+          <label className="inline-flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.incorporationDocumentsReceived}
+              onChange={(e) => set("incorporationDocumentsReceived", e.target.checked)}
+              className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
+            />
+            Incorporation documents received?
+          </label>
+        </div>
+      </fieldset>
 
       <TextareaField
         label="Notes"
