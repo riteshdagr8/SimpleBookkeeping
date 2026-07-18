@@ -66,24 +66,24 @@ export const authOptions: NextAuthOptions = {
         }
         const ok = await compare(String(creds.password), user.password);
         if (!ok) {
-          await writeAudit({
+          writeAudit({
             tenantId: user.tenantId,
             actorId: user.id,
             action: "LOGIN_FAILED",
             entity: "User",
             entityId: user.id,
             metadata: { email },
-          });
+          }).catch((e) => console.warn("[auth] Failed to write LOGIN_FAILED audit:", e));
           return null;
         }
-        await writeAudit({
+        writeAudit({
           tenantId: user.tenantId,
           actorId: user.id,
           action: "LOGIN_OK",
           entity: "User",
           entityId: user.id,
           metadata: { email },
-        });
+        }).catch((e) => console.warn("[auth] Failed to write LOGIN_OK audit:", e));
         return {
           id: user.id,
           email: user.email,
