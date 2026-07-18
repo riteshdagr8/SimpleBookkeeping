@@ -39,7 +39,7 @@ export const emptyClient: ClientFormInitial = {
   contactName: "",
   businessNumber: "",
   entityType: "",
-  fiscalYearEnd: "",
+  fiscalYearEnd: `${new Date().getFullYear()}-01-01`,
   incorporationDate: "",
   incorporationJurisdiction: "",
   address: "",
