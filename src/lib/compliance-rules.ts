@@ -55,7 +55,11 @@ export function hstPeriods(
       const periodStart = utc(year, m + 1, 1);
       // last day of month m: day 0 of month m+1
       const periodEnd = utc(year, m + 2, 0);
-      const due = addMonths(periodEnd, 1);
+      // Due: last day of month following the period (day 0 of the month after that)
+      const dueMonth1 = m + 3; // 1-based, could be 13-14
+      const dueY = year + Math.floor((dueMonth1 - 1) / 12);
+      const dueM1 = ((dueMonth1 - 1) % 12) + 1;
+      const due = utc(dueY, dueM1, 0);
       periods.push({ periodStart, periodEnd, filingDue: due, paymentDue: due });
     }
     return periods;
@@ -71,7 +75,10 @@ export function hstPeriods(
       // periodEnd.getUTCMonth() is 0-based; utc() takes 1-based months. Q1 ends Mar (2)
       // and starts Jan (1), so subtract 1: 2-1=1, utc(year,1,1)=Jan 1.
       const periodStart = utc(periodEnd.getUTCFullYear(), periodEnd.getUTCMonth() - 1, 1);
-      const due = addMonths(periodEnd, 1);
+      // Due: last day of the month following the quarter end (day 0 of the month after that)
+      const dueM1 = periodEnd.getUTCMonth() + 2; // 1-based month after the quarter end
+      const dueY = periodEnd.getUTCFullYear() + Math.floor(dueM1 / 12);
+      const due = utc(dueY, (dueM1 % 12) + 1, 0);
       return { periodStart, periodEnd, filingDue: due, paymentDue: due };
     });
   }
