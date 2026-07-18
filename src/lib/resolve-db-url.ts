@@ -14,5 +14,7 @@ export function resolveDatabaseUrl(raw: string): string {
   if (!raw.startsWith("file:")) return raw;
   const filePath = raw.slice("file:".length);
   if (path.isAbsolute(filePath)) return raw;
-  return `file:${path.resolve(process.cwd(), filePath)}`;
+  // Prisma CLI resolves file: paths relative to the prisma/ directory.
+  // Resolve from the same base so the runtime and CLI agree on the DB location.
+  return `file:${path.resolve(process.cwd(), "prisma", filePath)}`;
 }
