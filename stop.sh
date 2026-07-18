@@ -29,11 +29,16 @@ if [ -f dev.pid ]; then
   rm -f dev.pid
 fi
 
-# Strategy 2: anything listening on the port
+# Strategy 2: anything listening on the port (skip cloudflared tunnel)
 if command -v lsof >/dev/null 2>&1; then
   PIDS=$(lsof -ti tcp:$PORT 2>/dev/null || true)
   if [ -n "${PIDS:-}" ]; then
     for p in $PIDS; do
+      # Don't kill the Cloudflare tunnel — it's a separate service
+      if [ -f "/proc/$p/comm" ] && [ "$(cat "/proc/$p/comm" 2>/dev/null)" = "cloudflared" ]; then
+        echo "Skipped cloudflared PID $p"
+        continue
+      fi
       kill -TERM "$p" 2>/dev/null || true
       echo "Stopped listener PID $p"
     done
