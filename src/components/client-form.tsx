@@ -280,30 +280,6 @@ export function ClientForm({
         </div>
       </div>
 
-      {/* GST/HST */}
-      <fieldset className="rounded-lg border border-border px-3 py-2">
-        <legend className="px-2 text-sm font-medium text-fg">GST/HST</legend>
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="inline-flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.hstApplicable}
-              onChange={(e) => set("hstApplicable", e.target.checked)}
-              className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
-            />
-            GST/HST applicable
-          </label>
-          <SelectField
-            label="Frequency"
-            value={form.hstFrequency}
-            onChange={(v) => set("hstFrequency", v as ClientFormInitial["hstFrequency"])}
-            options={["", "Monthly", "Quarterly", "Annual", "SelfEmployed"]}
-            optionLabels={{ SelfEmployed: "Annual (Self-employed)" }}
-            disabled={!form.hstApplicable}
-          />
-        </div>
-      </fieldset>
-
       {/* Payroll */}
       <fieldset className="rounded-lg border border-border px-3 py-2">
         <legend className="px-2 text-sm font-medium text-fg">Payroll</legend>
@@ -349,45 +325,71 @@ export function ClientForm({
         </div>
       </fieldset>
 
-      {/* T2 (Corporate tax) */}
-      <fieldset className="rounded-lg border border-border px-3 py-2">
-        <legend className="px-2 text-sm font-medium text-fg">T2 (Corporate tax)</legend>
+      {/* GST/HST + T2 side by side */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <fieldset className="rounded-lg border border-border px-3 py-2">
+          <legend className="px-2 text-sm font-medium text-fg">GST/HST</legend>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.hstApplicable}
+                onChange={(e) => set("hstApplicable", e.target.checked)}
+                className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
+              />
+              GST/HST applicable
+            </label>
+            <SelectField
+              label="Frequency"
+              value={form.hstFrequency}
+              onChange={(v) => set("hstFrequency", v as ClientFormInitial["hstFrequency"])}
+              options={["", "Monthly", "Quarterly", "Annual", "SelfEmployed"]}
+              optionLabels={{ SelfEmployed: "Annual (Self-employed)" }}
+              disabled={!form.hstApplicable}
+            />
+          </div>
+        </fieldset>
+
+        <fieldset className="rounded-lg border border-border px-3 py-2">
+          <legend className="px-2 text-sm font-medium text-fg">T2 (Corporate tax)</legend>
+          <label className="inline-flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.threeMonthEligible}
+              onChange={(e) => set("threeMonthEligible", e.target.checked)}
+              className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
+            />
+            3-month eligible corporation (balance due 3 months after FYE)
+          </label>
+        </fieldset>
+      </div>
+
+      {/* Historical review + Documents on same line */}
+      <div className="flex flex-wrap items-center gap-4">
+        <label className="inline-flex items-center gap-2 text-sm">
+          <span className="font-medium text-fg">Historical years to review</span>
+          <select
+            value={String(form.reviewYears)}
+            onChange={(e) => set("reviewYears", (Number(e.target.value) as 3 | 4 | 5 | 6))}
+            className="rounded-md border border-border bg-bg-subtle px-2 py-1.5 text-sm text-fg outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+          >
+            {["3", "4", "5", "6"].map((o) => (
+              <option key={o} value={o}>{o}</option>
+            ))}
+          </select>
+        </label>
+        {reviewComplete && (
+          <p className="text-xs text-warning">Review is complete — change year count requires reopening review.</p>
+        )}
         <label className="inline-flex items-center gap-2 text-sm">
           <input
             type="checkbox"
-            checked={form.threeMonthEligible}
-            onChange={(e) => set("threeMonthEligible", e.target.checked)}
+            checked={form.incorporationDocumentsReceived}
+            onChange={(e) => set("incorporationDocumentsReceived", e.target.checked)}
             className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
           />
-          3-month eligible corporation (balance due 3 months after FYE)
+          Incorporation documents received?
         </label>
-      </fieldset>
-
-      {/* Documents */}
-      <label className="inline-flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          checked={form.incorporationDocumentsReceived}
-          onChange={(e) => set("incorporationDocumentsReceived", e.target.checked)}
-          className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
-        />
-        Incorporation documents received?
-      </label>
-
-      {/* Historical review */}
-      <div>
-        <span className="text-sm font-medium text-fg">Historical review</span>
-        <div className="mt-1 flex flex-wrap items-center gap-3">
-          <SelectField
-            label="Years to review"
-            value={String(form.reviewYears)}
-            onChange={(v) => set("reviewYears", (Number(v) as 3 | 4 | 5 | 6))}
-            options={["3", "4", "5", "6"]}
-          />
-          {reviewComplete && (
-            <p className="text-xs text-warning">Review is complete — change year count requires reopening review.</p>
-          )}
-        </div>
       </div>
 
       <TextareaField
