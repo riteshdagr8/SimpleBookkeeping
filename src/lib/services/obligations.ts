@@ -119,6 +119,14 @@ export async function generateObligationsForClient(
     return d.getTime() <= windowEnd.getTime();
   }
 
+  // Fiscal year start: the day after the prior FYE.
+  const fyeStart = (() => {
+    const s = new Date(fye);
+    s.setUTCMonth(s.getUTCMonth() - 12);
+    s.setUTCDate(s.getUTCDate() + 1);
+    return s;
+  })();
+
   // T2 — the upcoming T2 deadline (6mo after the most recent FYE). If that's
   // within the window, include it.
   const t2 = t2Deadlines(fye, client.threeMonthEligible);
@@ -126,6 +134,8 @@ export async function generateObligationsForClient(
     rows.push({
       clientId,
       filingType: "T2",
+      periodStart: fyeStart,
+      periodEnd: fye,
       filingDueDate: t2.filingDue,
       paymentDueDate: t2.paymentDue,
       status: "Pending",
@@ -173,7 +183,7 @@ export async function generateObligationsForClient(
       rows.push({
         clientId,
         filingType: "OntarioAnnualReturn",
-        periodStart: utc(fyeYear, 1, 1),
+        periodStart: fyeStart,
         periodEnd: fye,
         filingDueDate: oar.filingDue,
         status: "Pending",
