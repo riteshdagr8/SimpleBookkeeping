@@ -154,7 +154,7 @@ export function ObligationTable({ clientId, rows }: { clientId: string; rows: Ob
                 </td>
                 <td className="px-3 py-2 text-fg-muted">
                   {r.periodStart && r.periodEnd
-                    ? `${formatUTC(r.periodStart, false)} – ${formatUTC(r.periodEnd, true)}`
+                    ? `${formatUTC(r.periodStart, true)} – ${formatUTC(r.periodEnd, true)}`
                     : "—"}
                 </td>
                 <td className={`px-3 py-2 ${overdue ? "text-danger font-medium" : "text-fg-muted"}`}>

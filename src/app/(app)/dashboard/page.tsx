@@ -264,7 +264,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   </td>
                   <td className="px-3 py-2 text-fg-muted">
                     {o.periodStart && o.periodEnd
-                      ? `${formatUTC(o.periodStart, false)} – ${formatUTC(o.periodEnd, true)}`
+                      ? `${formatUTC(o.periodStart, true)} – ${formatUTC(o.periodEnd, true)}`
                       : "—"}
                   </td>
                   <td className={`px-3 py-2 ${overdue ? "font-medium text-danger" : "text-fg-muted"}`}>
