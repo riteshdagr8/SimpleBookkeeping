@@ -160,7 +160,15 @@ export async function getClient(tenantId: string, id: string) {
 
 export async function createClient(tenantId: string, actorId: string, input: ClientInput) {
   const data = buildCreateData(input, tenantId);
-  const client = await prisma.client.create({ data });
+  let client;
+  try {
+    client = await prisma.client.create({ data });
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("Unique constraint") && e.message.includes("fileNumber")) {
+      throw new Error(`File number "${input.fileNumber}" is already in use.`);
+    }
+    throw e;
+  }
   await prisma.folderChecklistItem.createMany({
     data: DEFAULT_FOLDER_ITEMS.map((itemName) => ({ clientId: client.id, itemName, created: false })),
   });

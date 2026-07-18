@@ -69,7 +69,6 @@ const MONTH_NAMES = [
 ] as const;
 
 function fyeToMonth(fye: string): string {
-  // fye stored as yyyy-mm-dd; extract mm
   if (!fye) return "";
   const m = fye.slice(5, 7);
   return MONTH_OPTIONS.includes(m as (typeof MONTH_OPTIONS)[number]) ? m : "";
@@ -106,16 +105,10 @@ export function ClientForm({
     }
   }
 
-  // Bug1 fix: re-sync the form's local state when the server-rendered `initial`
-  // changes (e.g., after a save + router.refresh() re-fetches with new server
-  // data). We depend on the identity fields, not the whole object, so typing
-  // in the form doesn't cause re-syncs that would clobber in-progress edits.
   useEffect(() => {
     setForm(initial);
   }, [initial.id, initial.fileNumber, initial.legalName, initial.fiscalYearEnd, initial.incorporationDate, initial.contactName]);
 
-  // Load the encrypted QuickBooks password for existing clients into a
-  // separate state so the re-sync effect above doesn't clear it.
   useEffect(() => {
     if (!initial.id) return;
     setQbLoading(true);
@@ -196,14 +189,12 @@ export function ClientForm({
     }
   }
 
-  // For the FYE month select, we need the year in addition to the month.
-  // Default to the year from the existing FYE, or the current year.
   const fyeYear = form.fiscalYearEnd ? form.fiscalYearEnd.slice(0, 4) : String(new Date().getFullYear());
   const fyeMonth = fyeToMonth(form.fiscalYearEnd);
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <form onSubmit={onSubmit} className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="File number *" value={form.fileNumber} onChange={(v) => set("fileNumber", v)} required />
         <Field label="Legal name *" value={form.legalName} onChange={(v) => set("legalName", v)} required />
         <Field label="Contact name" value={form.contactName} onChange={(v) => set("contactName", v)} />
@@ -251,43 +242,48 @@ export function ClientForm({
         />
         <Field label="Email" type="email" value={form.email} onChange={(v) => set("email", v)} />
         <Field label="Phone" value={form.phone} onChange={(v) => set("phone", v)} />
-        <Field label="Folder path" value={form.folderPath} onChange={(v) => set("folderPath", v)} className="sm:col-span-2" />
-        <Field label="Address" value={form.address} onChange={(v) => set("address", v)} className="sm:col-span-2" />
+        <Field label="Folder path" value={form.folderPath} onChange={(v) => set("folderPath", v)} />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-fg">QuickBooks password</label>
-        <div className="mt-1 flex items-center gap-2">
-          <input
-            type={showQb ? "text" : "password"}
-            value={qbLoaded !== null ? qbLoaded : form.qbPassword}
-            autoComplete="new-password"
-            disabled={qbLoading}
-            placeholder={qbLoading ? "Loading..." : ""}
-            onChange={(e) => {
-              setQbLoaded(e.target.value);
-              set("qbPassword", e.target.value);
-            }}
-            className="block w-full rounded-md border border-border bg-bg-subtle px-3 py-2 text-fg outline-none focus:border-ring focus:ring-2 focus:ring-ring/30 disabled:opacity-50"
-          />
-          <button
-            type="button"
-            onClick={() => !qbLoading && setShowQb((s) => !s)}
-            disabled={qbLoading}
-            title={showQb ? "Hide password" : "Show password"}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-bg-subtle text-fg hover:bg-surface disabled:opacity-50"
-          >
-            {showQb ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
+      {/* Address and QuickBooks password — side by side */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="Address" value={form.address} onChange={(v) => set("address", v)} />
+
+        <div>
+          <label className="block text-sm font-medium text-fg">QuickBooks password</label>
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              type={showQb ? "text" : "password"}
+              value={qbLoaded !== null ? qbLoaded : form.qbPassword}
+              autoComplete="new-password"
+              disabled={qbLoading}
+              placeholder={qbLoading ? "Loading..." : ""}
+              onChange={(e) => {
+                setQbLoaded(e.target.value);
+                set("qbPassword", e.target.value);
+              }}
+              className="block w-full rounded-md border border-border bg-bg-subtle px-3 py-2 text-fg outline-none focus:border-ring focus:ring-2 focus:ring-ring/30 disabled:opacity-50"
+            />
+            <button
+              type="button"
+              onClick={() => !qbLoading && setShowQb((s) => !s)}
+              disabled={qbLoading}
+              title={showQb ? "Hide password" : "Show password"}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-bg-subtle text-fg hover:bg-surface disabled:opacity-50"
+            >
+              {showQb ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-fg-muted">
+            Stored encrypted (AES-256-GCM){initial.id ? ". Leave blank to keep the existing password." : ""}
+          </p>
         </div>
-        <p className="mt-1 text-xs text-fg-muted">
-          Stored encrypted (AES-256-GCM){initial.id ? ". Leave blank to keep the existing password." : ""}
-        </p>
       </div>
 
-      <fieldset className="rounded-lg border border-border p-4">
+      {/* GST/HST */}
+      <fieldset className="rounded-lg border border-border px-3 py-2">
         <legend className="px-2 text-sm font-medium text-fg">GST/HST</legend>
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
           <label className="inline-flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -308,9 +304,10 @@ export function ClientForm({
         </div>
       </fieldset>
 
-      <fieldset className="rounded-lg border border-border p-4">
+      {/* Payroll */}
+      <fieldset className="rounded-lg border border-border px-3 py-2">
         <legend className="px-2 text-sm font-medium text-fg">Payroll</legend>
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
           <label className="inline-flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -334,12 +331,12 @@ export function ClientForm({
             onChange={(v) => set("remitterType", v as ClientFormInitial["remitterType"])}
             options={["", "Regular", "Quarterly", "Accelerated1", "Accelerated2"]}
             optionLabels={{
-              Accelerated1: "Accelerated Remitter (Threshold 1)",
-              Accelerated2: "Accelerated Remitter (Threshold 2)",
+              Accelerated1: "Accelerated (Threshold 1)",
+              Accelerated2: "Accelerated (Threshold 2)",
             }}
             disabled={!form.payrollApplicable}
           />
-          <label className="inline-flex items-center gap-2 text-sm">
+          <label className="inline-flex items-center gap-2 text-sm whitespace-nowrap">
             <input
               type="checkbox"
               checked={form.qbOnlinePayroll}
@@ -352,39 +349,35 @@ export function ClientForm({
         </div>
       </fieldset>
 
-      <fieldset className="rounded-lg border border-border p-4">
+      {/* T2 (Corporate tax) */}
+      <fieldset className="rounded-lg border border-border px-3 py-2">
         <legend className="px-2 text-sm font-medium text-fg">T2 (Corporate tax)</legend>
-        <div className="space-y-3">
-          <label className="inline-flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.threeMonthEligible}
-              onChange={(e) => set("threeMonthEligible", e.target.checked)}
-              className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
-            />
-            3-month eligible corporation (balance due 3 months after FYE)
-          </label>
-        </div>
+        <label className="inline-flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={form.threeMonthEligible}
+            onChange={(e) => set("threeMonthEligible", e.target.checked)}
+            className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
+          />
+          3-month eligible corporation (balance due 3 months after FYE)
+        </label>
       </fieldset>
 
-      <fieldset className="rounded-lg border border-border p-4">
-        <legend className="px-2 text-sm font-medium text-fg">Documents</legend>
-        <div className="space-y-3">
-          <label className="inline-flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.incorporationDocumentsReceived}
-              onChange={(e) => set("incorporationDocumentsReceived", e.target.checked)}
-              className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
-            />
-            Incorporation documents received
-          </label>
-        </div>
-      </fieldset>
+      {/* Documents */}
+      <label className="inline-flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={form.incorporationDocumentsReceived}
+          onChange={(e) => set("incorporationDocumentsReceived", e.target.checked)}
+          className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
+        />
+        Incorporation documents received?
+      </label>
 
-      <fieldset className="rounded-lg border border-border p-4">
-        <legend className="px-2 text-sm font-medium text-fg">Historical review</legend>
-        <div className="flex flex-wrap items-center gap-4">
+      {/* Historical review */}
+      <div>
+        <span className="text-sm font-medium text-fg">Historical review</span>
+        <div className="mt-1 flex flex-wrap items-center gap-3">
           <SelectField
             label="Years to review"
             value={String(form.reviewYears)}
@@ -395,14 +388,13 @@ export function ClientForm({
             <p className="text-xs text-warning">Review is complete — change year count requires reopening review.</p>
           )}
         </div>
-      </fieldset>
+      </div>
 
       <TextareaField
         label="Notes"
         value={form.notes}
         onChange={(v) => set("notes", v)}
-        className="sm:col-span-2"
-        rows={4}
+        rows={3}
       />
 
       {error && (

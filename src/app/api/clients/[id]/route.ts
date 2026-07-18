@@ -15,33 +15,40 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await requireUser();
-  const { id } = await params;
-  const body = await req.json().catch(() => null);
-  const parsed = clientInputSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "Invalid input" },
-      { status: 400 }
-    );
-  }
-  const existing = await getClient(user.tenantId, id);
-  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  // Staff cannot edit inactive clients.
-  if (!existing.active && user.role !== "Admin") {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-  const result = await updateClient(user.tenantId, user.id, id, parsed.data);
-  if (!result.ok) {
-    if (result.reason === "not_found") {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
+  try {
+    const user = await requireUser();
+    const { id } = await params;
+    const body = await req.json().catch(() => null);
+    const parsed = clientInputSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message ?? "Invalid input" },
+        { status: 400 }
+      );
     }
-    return NextResponse.json(
-      { error: "Review is complete — unmark 'Review complete' before changing the year count." },
-      { status: 400 }
-    );
+    const existing = await getClient(user.tenantId, id);
+    if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!existing.active && user.role !== "Admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const result = await updateClient(user.tenantId, user.id, id, parsed.data);
+    if (!result.ok) {
+      if (result.reason === "not_found") {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+      return NextResponse.json(
+        { error: "Review is complete — unmark 'Review complete' before changing the year count." },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json({ client: result.client });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Update failed";
+    if (msg.includes("already in use")) {
+      return NextResponse.json({ error: msg }, { status: 409 });
+    }
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
-  return NextResponse.json({ client: result.client });
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
