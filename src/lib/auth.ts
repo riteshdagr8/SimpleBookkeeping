@@ -3,7 +3,6 @@ import "next-auth/jwt";
 import type { NextAuthOptions } from "next-auth";
 import { getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
 import { compare } from "bcryptjs";
@@ -135,14 +134,7 @@ export async function requireUser() {
     select: { id: true, active: true },
   });
   if (!exists || !exists.active) {
-    const cookieStore = await cookies();
-    for (const name of [
-      "next-auth.session-token",
-      "__Secure-next-auth.session-token",
-    ]) {
-      if (cookieStore.get(name)) cookieStore.delete(name);
-    }
-    redirect("/login?stale=1");
+    redirect("/api/auth/signout?stale=1");
   }
   return session.user;
 }
