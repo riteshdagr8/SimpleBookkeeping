@@ -17,8 +17,8 @@ export const WORKFLOW_CONFIGS: Record<string, WorkflowConfig> = {
     interactionType: "Payroll",
     initialStatus: "Pending",
     // 5 steps → 5 statuses. The 5th (Remittance, conditional) is the terminal
-    // for QBO clients. For non-QBO clients, step 4 (Sent) is the terminal
-    // because step 5 is hidden.
+    // for QBO clients. For non-QBO clients, step 4 (Sent) reaches "Completed"
+    // when checked with valid employee count and remittance (including 0).
     statusByStep: ["Ready", "Processed", "Generated", "Sent", "Completed"],
     steps: [
       {
@@ -42,9 +42,13 @@ export const WORKFLOW_CONFIGS: Record<string, WorkflowConfig> = {
         label: "Paystub and payroll report sent",
         comment:
           "Send payroll reports and pay stubs to the client on the last business day of the month, or on the next business day if the month-end falls on a weekend or holiday",
-        fieldsSatisfied: (fields) =>
-          fields.employeeCount != null && fields.employeeCount !== "" &&
-          fields.totalRemittance != null && fields.totalRemittance !== "",
+        fieldsSatisfied: (fields) => {
+          // For non-QBO clients, this is the terminal step. Require both fields
+          // to be present (including 0 as a valid value).
+          const hasEmployeeCount = fields.employeeCount != null && fields.employeeCount !== "";
+          const hasTotalRemittance = fields.totalRemittance != null && fields.totalRemittance !== "";
+          return hasEmployeeCount && hasTotalRemittance;
+        },
       },
       {
         key: "remittancesSubmitted",
@@ -52,9 +56,13 @@ export const WORKFLOW_CONFIGS: Record<string, WorkflowConfig> = {
         comment:
           "For clients using QuickBooks Online Payroll, process and submit payroll remittances as required.",
         condition: (ctx) => Boolean(ctx.client.qbOnlinePayroll),
-        fieldsSatisfied: (fields) =>
-          fields.employeeCount != null && fields.employeeCount !== "" &&
-          fields.totalRemittance != null && fields.totalRemittance !== "",
+        fieldsSatisfied: (fields) => {
+          // For QBO clients, this is the terminal step. Require both fields
+          // to be present (including 0 as a valid value).
+          const hasEmployeeCount = fields.employeeCount != null && fields.employeeCount !== "";
+          const hasTotalRemittance = fields.totalRemittance != null && fields.totalRemittance !== "";
+          return hasEmployeeCount && hasTotalRemittance;
+        },
       },
     ],
     fields: [
