@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { Providers } from "./providers";
 import { NavLink } from "@/components/nav-link";
 import { NavProgress } from "@/components/nav-progress";
+import { SignOutButton } from "@/components/sign-out-button";
 import { isThemeId, DEFAULT_THEME, type ThemeId } from "@/lib/theme";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -24,12 +25,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <span className="text-fg-muted">
                 {user.name} <span className="text-fg-muted/70">({user.role})</span>
               </span>
-              <Link
-                href="/api/auth/signout"
-                className="rounded-md border border-border bg-bg-subtle px-3 py-1.5 text-fg shadow-sm hover:bg-surface active:scale-[0.98] transition"
-              >
-                Sign out
-              </Link>
+              <SignOutButton />
             </div>
           </div>
         </header>

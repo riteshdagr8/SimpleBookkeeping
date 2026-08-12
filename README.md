@@ -58,6 +58,9 @@ The dev server binds to `0.0.0.0:3100`. Open <http://localhost:3100>.
 Logs go to `dev.out.log` and `dev.err.log`; the process keeps running
 after you close the terminal.
 
+> **Unix/macOS:** If the scripts were downloaded without executable permissions,
+> run `chmod +x start.sh stop.sh` once before using `./start.sh` or `./stop.sh`.
+
 #### Option B — foreground dev server
 
 ```bash
