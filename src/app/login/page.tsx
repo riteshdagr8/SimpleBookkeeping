@@ -8,7 +8,11 @@ import { LoadingButton } from "@/components/loading-button";
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const callbackUrl = params.get("callbackUrl") ?? "/dashboard";
+  // Only allow same-origin relative paths to avoid an open redirect after login
+  // (e.g. ?callbackUrl=https://evil.com). Reject protocol-relative "//host".
+  const rawCallback = params.get("callbackUrl") ?? "/dashboard";
+  const callbackUrl =
+    rawCallback.startsWith("/") && !rawCallback.startsWith("//") ? rawCallback : "/dashboard";
   const stale = params.get("stale") === "1";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -88,6 +92,9 @@ function LoginForm() {
         >
           Sign in
         </LoadingButton>
+        <a href="/forgot-password" className="mt-4 block text-center text-sm text-fg-muted underline">
+          Forgot password?
+        </a>
       </form>
     </main>
   );
