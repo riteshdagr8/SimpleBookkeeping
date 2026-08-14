@@ -25,8 +25,9 @@ fi
 echo "Running Prisma migrate deploy..."
 "$PRISMA" migrate deploy
 
-echo "Seeding default tenant and users (if missing)..."
-"$PRISMA" db seed
+# NOTE: we intentionally do NOT run `prisma db seed` here. Seed ships demo
+# credentials; running it on every start would reset admin passwords. Create
+# real users via `npm run create-admin` or the /admin/users page instead.
 
 echo "Starting Next.js standalone server..."
 exec node server.js

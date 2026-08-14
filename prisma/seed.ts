@@ -17,11 +17,16 @@ async function main() {
   ];
 
   for (const u of users) {
+    const existing = await prisma.user.findUnique({ where: { email: u.email } });
+    if (existing) {
+      // Never overwrite an existing user's password (or any other field) — seed
+      // must not reset an admin who changed their credentials. Create-only.
+      console.log(`Skipped ${u.email} (already exists)`);
+      continue;
+    }
     const password = await hash(u.password, 12);
-    await prisma.user.upsert({
-      where: { email: u.email },
-      update: { name: u.name, role: u.role, password, tenantId: tenant.id, active: true },
-      create: {
+    await prisma.user.create({
+      data: {
         email: u.email,
         name: u.name,
         role: u.role,
