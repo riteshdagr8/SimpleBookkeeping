@@ -42,3 +42,11 @@ Thumbs.db
 .idea/
 *.swp
 tsconfig.tsbuildinfo
+
+# code review / scratch artifacts (local only, not project source)
+.claude/plans/
+.review-prompt-*.txt
+VERIFICATION_REPORT.md
+code-review*.md
+gen2.json
+zod.json
