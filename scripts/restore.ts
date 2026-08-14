@@ -14,6 +14,7 @@ import "dotenv/config";
 import { existsSync, readdirSync, statSync, copyFileSync, unlinkSync } from "fs";
 import { isAbsolute, join, resolve } from "path";
 import { format } from "date-fns";
+import { resolveDatabaseUrl } from "../src/lib/resolve-db-url";
 
 function parseArgs() {
   const argv = process.argv.slice(2);
@@ -30,12 +31,10 @@ function parseArgs() {
 }
 
 function resolveDbPath(): string {
-  const raw = process.env.DATABASE_URL ?? "file:./data/app.db";
-  const stripped = raw.replace(/^file:/, "").replace(/^\/+/, "");
-  if (!isAbsolute(stripped)) {
-    return resolve(process.cwd(), stripped);
-  }
-  return stripped;
+  // Match the runtime's resolution (src/lib/resolve-db-url.ts): relative
+  // `file:` URLs resolve against cwd/prisma, so `file:../data/app.db` → cwd/data/app.db.
+  const raw = process.env.DATABASE_URL ?? "file:../data/app.db";
+  return resolveDatabaseUrl(raw).replace(/^file:/, "");
 }
 
 function listBackups(outputDir: string) {

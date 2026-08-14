@@ -29,6 +29,7 @@ import { createHash } from "crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "fs";
 import { isAbsolute, join, resolve } from "path";
 import { format } from "date-fns";
+import { resolveDatabaseUrl } from "../src/lib/resolve-db-url";
 
 interface Args {
   outputDir: string;
@@ -51,15 +52,11 @@ function parseArgs(): Args {
 }
 
 function resolveDbPath(): string {
-  const raw = process.env.DATABASE_URL ?? "file:./data/app.db";
-  const stripped = raw.replace(/^file:/, "").replace(/^\/+/, "");
-  // DATABASE_URL is relative to the prisma/ folder, where schema.prisma lives.
-  // For our CLI scripts (which run with cwd = project root) we want it
-  // relative to the project root.
-  if (!isAbsolute(stripped)) {
-    return resolve(process.cwd(), stripped);
-  }
-  return stripped;
+  // Use the same resolution as the runtime (src/lib/resolve-db-url.ts) so a
+  // relative `file:../data/app.db` from .env resolves to the same file the
+  // app uses (cwd/prisma base), not <cwd-parent>/data/app.db.
+  const raw = process.env.DATABASE_URL ?? "file:../data/app.db";
+  return resolveDatabaseUrl(raw).replace(/^file:/, "");
 }
 
 function sqliteCliAvailable(): boolean {
