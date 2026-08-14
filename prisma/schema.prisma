@@ -34,6 +34,7 @@ model User {
 
   tenant Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   audits AuditLog[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([tenantId])
 }
@@ -41,7 +42,7 @@ model User {
 model Client {
   id                        String   @id @default(cuid())
   tenantId                  String
-  fileNumber                String
+  fileNumber                String? // optional; unique when set (NULLs may repeat)
   legalName                 String
   contactName               String?
   businessNumber            String?
@@ -51,11 +52,13 @@ model Client {
   incorporationJurisdiction String?
   address                   String?
   phone                     String?
-  email                     String?
+  primaryEmail              String   @default("")
+  secondaryEmail            String?
   folderPath                String?
   qbPasswordEncrypted       String?
   hstApplicable             Boolean  @default(false)
   hstFrequency              String?
+  gstYearEnd                String? // Month name (Jan-Dec) anchoring GST/HST calendar periods
   payrollApplicable         Boolean  @default(false)
   payrollFrequency          String?
   remitterType              String?
@@ -258,4 +261,17 @@ model AuditLog {
   actor  User   @relation(fields: [actorId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, createdAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
