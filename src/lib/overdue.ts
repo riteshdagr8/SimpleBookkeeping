@@ -8,11 +8,7 @@ export interface OverdueInput {
 }
 
 export function isOverdue(o: OverdueInput, nowMs: number): boolean {
-  if (o.status === "Filed" || !o.filingDueDate) return false;
+  // "Filed/Completed" (app status) and "Completed" (workflow status) are done.
+  if (o.status === "Filed/Completed" || o.status === "Completed" || !o.filingDueDate) return false;
   return o.filingDueDate.getTime() - nowMs < 0;
-}
-
-export function isOverdueDate(due: Date | null, status: string, nowMs: number): boolean {
-  if (status === "Filed" || !due) return false;
-  return due.getTime() - nowMs < 0;
 }
