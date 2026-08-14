@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/services/audit";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { requestOrigin } from "@/lib/request-origin";
 
 const schema = z.object({ email: z.string().email().max(200) });
 
@@ -28,7 +29,8 @@ export async function POST(request: Request) {
     await prisma.passwordResetToken.create({
       data: { userId: user.id, tokenHash, expiresAt: new Date(Date.now() + 30 * 60 * 1000) },
     });
-    const origin = process.env.NEXTAUTH_URL || new URL(request.url).origin;
+    // Use the host the browser sent, not request.url's listen address (0.0.0.0).
+    const origin = process.env.NEXTAUTH_URL || requestOrigin(request);
     const resetUrl = `${origin}/reset-password?token=${encodeURIComponent(rawToken)}`;
     await sendPasswordResetEmail(user.email, resetUrl);
     await writeAudit({ tenantId: user.tenantId, actorId: user.id, action: "PASSWORD_RESET_REQUESTED", entity: "User", entityId: user.id });
