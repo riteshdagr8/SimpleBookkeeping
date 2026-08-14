@@ -115,7 +115,8 @@ export function WorkflowListView({
                     href={`/${config.slug}/${r.obligationId}`}
                     className="text-fg hover:text-primary hover:underline"
                   >
-                    {r.client.fileNumber} — {r.client.legalName}
+                    {r.client.fileNumber ? `${r.client.fileNumber} — ` : ""}
+                    {r.client.legalName}
                   </Link>
                 </td>
                 <td className="px-3 py-2 text-fg">{filingTypeLabel(r.obligation.filingType)}</td>
@@ -273,7 +274,8 @@ export function WorkflowDetailView({
             <span>{client.legalName}</span>
           </h1>
           <p className="text-sm text-fg-muted">
-            {client.fileNumber} · FYE {formatUTC(client.fiscalYearEnd, true)} · Due{" "}
+            {client.fileNumber ? `${client.fileNumber} · ` : ""}FYE{" "}
+            {formatUTC(client.fiscalYearEnd, true)} · Due{" "}
             {formatUTC(obligation.filingDueDate, true)}
           </p>
         </div>

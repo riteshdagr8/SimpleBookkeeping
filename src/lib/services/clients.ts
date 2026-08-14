@@ -11,7 +11,8 @@ const dateOnly = z
   .transform((v) => (v instanceof Date ? v : new Date(v)));
 
 export const clientInputSchema = z.object({
-  fileNumber: z.string().min(1).max(40),
+  // File number is optional; empty/null maps to NULL in the DB.
+  fileNumber: z.string().trim().max(40).optional().nullable(),
   legalName: z.string().min(1).max(200),
   contactName: z.string().max(200).optional().nullable(),
   incorporationDate: dateOnly
@@ -42,7 +43,9 @@ export const clientInputSchema = z.object({
   incorporationJurisdiction: z.enum(["Federal", "Ontario"]).optional().nullable(),
   address: z.string().max(400).optional().nullable(),
   phone: z.string().max(40).optional().nullable(),
-  email: z.string().email().max(200).optional().nullable(),
+  primaryEmail: z.string().email().max(200),
+  secondaryEmail: z.union([z.string().email().max(200), z.literal("")]).optional().nullable(),
+  gstYearEnd: z.string().max(20).optional().nullable(),
   folderPath: z.string().max(1000).optional().nullable(),
   qbPassword: z.string().max(200).optional().nullable(),
   hstApplicable: z.boolean().optional(),
@@ -69,7 +72,7 @@ export type ClientInput = z.infer<typeof clientInputSchema>;
 function buildCreateData(input: ClientInput, tenantId: string): Prisma.ClientUncheckedCreateInput {
   return {
     tenantId,
-    fileNumber: input.fileNumber.trim(),
+    fileNumber: input.fileNumber?.trim() || null,
     legalName: input.legalName.trim(),
     contactName: input.contactName ?? null,
     businessNumber: input.businessNumber ?? null,
@@ -79,7 +82,9 @@ function buildCreateData(input: ClientInput, tenantId: string): Prisma.ClientUnc
     incorporationJurisdiction: input.incorporationJurisdiction ?? null,
     address: input.address ?? null,
     phone: input.phone ?? null,
-    email: input.email ?? null,
+    primaryEmail: input.primaryEmail,
+    secondaryEmail: input.secondaryEmail || null,
+    gstYearEnd: input.gstYearEnd || null,
     folderPath: input.folderPath ?? null,
     hstApplicable: input.hstApplicable ?? false,
     hstFrequency: input.hstApplicable ? input.hstFrequency ?? null : null,
@@ -98,7 +103,7 @@ function buildCreateData(input: ClientInput, tenantId: string): Prisma.ClientUnc
 
 function buildUpdateData(input: ClientInput): Prisma.ClientUpdateInput {
   return {
-    fileNumber: input.fileNumber.trim(),
+    fileNumber: input.fileNumber?.trim() || null,
     legalName: input.legalName.trim(),
     contactName: input.contactName ?? null,
     businessNumber: input.businessNumber ?? null,
@@ -108,7 +113,9 @@ function buildUpdateData(input: ClientInput): Prisma.ClientUpdateInput {
     incorporationJurisdiction: input.incorporationJurisdiction ?? null,
     address: input.address ?? null,
     phone: input.phone ?? null,
-    email: input.email ?? null,
+    primaryEmail: input.primaryEmail,
+    secondaryEmail: input.secondaryEmail || null,
+    gstYearEnd: input.gstYearEnd || null,
     folderPath: input.folderPath ?? null,
     hstApplicable: input.hstApplicable ?? false,
     hstFrequency: input.hstApplicable ? input.hstFrequency ?? null : null,
@@ -141,6 +148,9 @@ export async function listClients(tenantId: string) {
       legalName: true,
       fiscalYearEnd: true,
       businessNumber: true,
+      phone: true,
+      primaryEmail: true,
+      secondaryEmail: true,
       reviewComplete: true,
       onboardingStatus: true,
       active: true,
@@ -165,7 +175,7 @@ export async function createClient(tenantId: string, actorId: string, input: Cli
     client = await prisma.client.create({ data });
   } catch (e) {
     if (e instanceof Error && e.message.includes("Unique constraint") && e.message.includes("fileNumber")) {
-      throw new Error(`File number "${input.fileNumber}" is already in use.`);
+      throw new Error(`File number "${input.fileNumber ?? ""}" is already in use.`);
     }
     throw e;
   }

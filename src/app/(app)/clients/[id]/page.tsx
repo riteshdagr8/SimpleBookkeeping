@@ -20,7 +20,7 @@ function formatUTC(d: Date | null, withYear: boolean): string {
 function toInitial(c: NonNullable<Awaited<ReturnType<typeof getClient>>>): ClientFormInitial {
   return {
     id: c.id,
-    fileNumber: c.fileNumber,
+    fileNumber: c.fileNumber ?? "",
     legalName: c.legalName,
     contactName: c.contactName ?? "",
     businessNumber: c.businessNumber ?? "",
@@ -30,7 +30,9 @@ function toInitial(c: NonNullable<Awaited<ReturnType<typeof getClient>>>): Clien
     incorporationJurisdiction: (c.incorporationJurisdiction as "" | "Federal" | "Ontario") ?? "",
     address: c.address ?? "",
     phone: c.phone ?? "",
-    email: c.email ?? "",
+    primaryEmail: c.primaryEmail,
+    secondaryEmail: c.secondaryEmail ?? "",
+    gstYearEnd: c.gstYearEnd ?? "",
     folderPath: c.folderPath ?? "",
     qbPassword: "",
     onboardingStatus: c.onboardingStatus ?? "In Progress",
@@ -68,7 +70,9 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         <div>
           <h1 className="text-2xl font-semibold text-fg">
             {client.legalName}{" "}
-            <span className="text-base font-normal text-fg-muted">#{client.fileNumber}</span>
+            {client.fileNumber && (
+              <span className="text-base font-normal text-fg-muted">#{client.fileNumber}</span>
+            )}
           </h1>
           <p className="text-sm text-fg-muted">
             FYE {formatUTC(client.fiscalYearEnd, true)} · BN {client.businessNumber ?? "—"}

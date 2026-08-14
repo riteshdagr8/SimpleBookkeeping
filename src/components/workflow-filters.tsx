@@ -5,7 +5,7 @@ import { useTransition } from "react";
 
 interface ClientOption {
   id: string;
-  fileNumber: string;
+  fileNumber: string | null;
   legalName: string;
 }
 
@@ -74,7 +74,8 @@ export function WorkflowFilters({ clients, statuses, slug }: Props) {
             <option value="">All</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.fileNumber} — {c.legalName}
+                {c.fileNumber ? `${c.fileNumber} — ` : ""}
+                {c.legalName}
               </option>
             ))}
           </select>

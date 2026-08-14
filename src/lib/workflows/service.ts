@@ -207,7 +207,7 @@ export interface ListedWorkflow {
   };
   client: {
     id: string;
-    fileNumber: string;
+    fileNumber: string | null;
     legalName: string;
   };
   updatedAt: Date;

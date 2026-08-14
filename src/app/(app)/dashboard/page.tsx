@@ -91,7 +91,7 @@ function statusLabel(s: string): string {
 }
 
 /** Sort obligations by the given sort key and direction. */
-function sortObligations<T extends { client: { fileNumber: string; legalName: string }; filingType: string; periodStart: Date | null; periodEnd: Date | null; filingDueDate: Date | null }>(
+function sortObligations<T extends { client: { fileNumber: string | null; legalName: string }; filingType: string; periodStart: Date | null; periodEnd: Date | null; filingDueDate: Date | null }>(
   items: T[],
   sortBy: string,
   sortDir: string
@@ -100,7 +100,7 @@ function sortObligations<T extends { client: { fileNumber: string; legalName: st
   return [...items].sort((a, b) => {
     let cmp = 0;
     if (sortBy === "client") {
-      cmp = a.client.fileNumber.localeCompare(b.client.fileNumber);
+      cmp = (a.client.fileNumber ?? "").localeCompare(b.client.fileNumber ?? "");
     } else if (sortBy === "type") {
       cmp = typeLabel(a.filingType).localeCompare(typeLabel(b.filingType));
     } else if (sortBy === "period") {
@@ -241,7 +241,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 <tr key={o.id} className="border-t border-border">
                   <td className="px-3 py-2">
                     <Link href={`/clients/${o.client.id}`} className="font-medium text-fg hover:underline">
-                      {o.client.fileNumber} — {o.client.legalName}
+                      {o.client.fileNumber ? `${o.client.fileNumber} — ` : ""}
+                      {o.client.legalName}
                     </Link>
                   </td>
                   <td className="px-3 py-2 text-fg">
