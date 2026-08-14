@@ -29,6 +29,7 @@
     "next-auth": "^4.24.10",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "resend": "^6.20.0",
     "tailwind-merge": "^2.5.4",
     "zod": "^3.23.8"
   },
