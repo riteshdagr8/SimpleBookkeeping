@@ -4,7 +4,9 @@ import { resolveDatabaseUrl } from "@/lib/resolve-db-url";
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   NEXTAUTH_SECRET: z.string().min(16, "NEXTAUTH_SECRET must be at least 16 characters"),
-  NEXTAUTH_URL: z.string().url().default("http://localhost:3000"),
+  // Optional: when unset, NextAuth and email links derive the base URL from the
+  // incoming request, so the app works regardless of host name or port.
+  NEXTAUTH_URL: z.string().url().optional(),
   APP_DATA_KEY: z.string().optional(),
   BACKUP_DIR: z.string().optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),

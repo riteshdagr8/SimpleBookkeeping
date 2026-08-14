@@ -54,9 +54,13 @@ npm run seed               # seeds default tenant + 2 demo users
 | Windows        | `start.cmd`    | `stop.cmd`    |
 | macOS / Linux  | `./start.sh`   | `./stop.sh`   |
 
-The dev server binds to `0.0.0.0:3100`. Open <http://localhost:3100>.
+The dev server binds to `0.0.0.0:3100` (override with the `PORT` env
+var). Open <http://localhost:3100> on this machine, or
+`http://<this-machine-ip>:3100` from another machine on the network.
 Logs go to `dev.out.log` and `dev.err.log`; the process keeps running
-after you close the terminal.
+after you close the terminal. The app derives its own base URL from the
+incoming request, so `NEXTAUTH_URL` does not need to be set for the dev
+server.
 
 > **Unix/macOS:** If the scripts were downloaded without executable permissions,
 > run `chmod +x start.sh stop.sh` once before using `./start.sh` or `./stop.sh`.
@@ -81,9 +85,11 @@ npm run start               # binds 0.0.0.0:3000
 node -e "console.log('NEXTAUTH_SECRET=' + require('crypto').randomBytes(32).toString('base64'))"
 node -e "console.log('APP_DATA_KEY=' + require('crypto').randomBytes(32).toString('base64'))"
 
-# Put them in a .env file or pass inline:
+# The container derives its auth base URL from the incoming request
+# (AUTH_TRUST_HOST=true), so NEXTAUTH_URL is optional:
 NEXTAUTH_SECRET=... APP_DATA_KEY=... docker compose up -d --build
-# Open http://localhost:3000
+# Open http://localhost:3001 (the compose file maps host 3001 -> container 3000),
+# or http://<this-machine-ip>:3001 from another machine.
 ```
 
 The Docker image uses Next.js `output: "standalone"` and a multi-stage
@@ -183,9 +189,9 @@ Stop the SimpleBookkeeping app before restoring.
 
 | command | purpose |
 | --- | --- |
-| `npm run dev` | start the dev server on 0.0.0.0:3000 |
+| `npm run dev` | start the dev server on 0.0.0.0:3000 (foreground) |
 | `npm run build` | production build (generates `.next/standalone`) |
-| `npm run start` | start the production server on 0.0.0.0:3000 |
+| `npm run start` | start the production server on 0.0.0.0:3000 (foreground) |
 | `npm run typecheck` | TypeScript type-check |
 | `npm run lint` | ESLint |
 | `npm run seed` | seed the default tenant + 2 demo users |

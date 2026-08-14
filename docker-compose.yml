@@ -2,8 +2,8 @@
 # Data and backups are stored in named volumes so they survive container restarts.
 #
 # Quick start:
-#   docker compose up -d --build
-#   open http://localhost:3000
+#   NEXTAUTH_URL=http://<your-public-or-ip>:3001 docker compose up -d --build
+#   open http://localhost:3001
 #
 # Default credentials (admin@firm.ca / admin123) — change after first login.
 
@@ -23,7 +23,10 @@ services:
       DATABASE_URL: "file:/app/data/app.db"
       # Generate with: openssl rand -base64 32
       NEXTAUTH_SECRET: "${NEXTAUTH_SECRET:-change-me-in-env-or-set-now}"
-      NEXTAUTH_URL: "${NEXTAUTH_URL:-http://localhost:3001}"
+      # Derive the auth base URL from the incoming request host/port.
+      AUTH_TRUST_HOST: "true"
+      # Optional: fixed public origin when behind a TLS-terminating reverse proxy.
+      NEXTAUTH_URL: "${NEXTAUTH_URL:-}"
       # 32 raw bytes, base64-encoded. Run `npm run crypto-init` to populate,
       # or generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
       # Required: 32 raw bytes, base64-encoded. Generate with:
