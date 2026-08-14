@@ -32,6 +32,7 @@ const TYPE_LABELS: Record<string, string> = {
   T2: "Corporate Tax Return",
   HST: "GST/HST",
   PayrollRemittance: "Payroll Remittance",
+  PayrollProcessing: "Payroll Processing",
   OntarioAnnualReturn: "Ontario Annual Return",
   FederalAnnualReturn: "Federal Annual Return",
 };
@@ -71,10 +72,12 @@ export function ObligationTable({ clientId, rows }: { clientId: string; rows: Ob
   const [navigating, setNavigating] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<string>("filingDue");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [filter, setFilter] = useState<"All" | "PayrollProcessing" | "PayrollRemittance">("All");
+  const filteredRows = useMemo(() => filter === "All" ? rows : rows.filter((r) => r.filingType === filter), [rows, filter]);
 
   const sorted = useMemo(() => {
     const dir = sortDir === "desc" ? -1 : 1;
-    return [...rows].sort((a, b) => {
+    return [...filteredRows].sort((a, b) => {
       let cmp = 0;
       if (sortBy === "type") {
         cmp = typeLabel(a.filingType).localeCompare(typeLabel(b.filingType));
@@ -89,7 +92,7 @@ export function ObligationTable({ clientId, rows }: { clientId: string; rows: Ob
       }
       return cmp * dir;
     });
-  }, [rows, sortBy, sortDir]);
+  }, [filteredRows, sortBy, sortDir]);
 
   function toggleSort(field: string) {
     if (sortBy === field) {
@@ -106,7 +109,13 @@ export function ObligationTable({ clientId, rows }: { clientId: string; rows: Ob
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-surface">
+    <div className="space-y-2">
+      <div className="inline-flex rounded-md border border-border bg-surface p-0.5" role="group" aria-label="Obligation type filter">
+        {([["All", "All"], ["PayrollProcessing", "Payroll Processing"], ["PayrollRemittance", "Payroll Remittances"]] as const).map(([value, label]) => (
+          <button key={value} type="button" onClick={() => setFilter(value)} className={`px-3 py-1 text-xs rounded ${filter === value ? "bg-primary text-white" : "text-fg-muted hover:text-fg"}`}>{label}</button>
+        ))}
+      </div>
+      <div className="overflow-hidden rounded-lg border border-border bg-surface">
       <table className="min-w-full text-sm">
         <thead className="bg-bg-subtle text-left text-xs text-fg-muted">
           <tr>
@@ -177,6 +186,7 @@ export function ObligationTable({ clientId, rows }: { clientId: string; rows: Ob
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
