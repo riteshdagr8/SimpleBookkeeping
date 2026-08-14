@@ -27,6 +27,9 @@ services:
       AUTH_TRUST_HOST: "true"
       # Optional: fixed public origin when behind a TLS-terminating reverse proxy.
       NEXTAUTH_URL: "${NEXTAUTH_URL:-}"
+      # Optional: explicit public origin for absolute links (password-reset email),
+      # e.g. http://bk.simplefinclient.com when behind a Cloudflare tunnel.
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-}"
       # 32 raw bytes, base64-encoded. Run `npm run crypto-init` to populate,
       # or generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
       # Required: 32 raw bytes, base64-encoded. Generate with:

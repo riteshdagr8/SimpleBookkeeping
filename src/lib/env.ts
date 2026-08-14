@@ -7,6 +7,10 @@ const envSchema = z.object({
   // Optional: when unset, NextAuth and email links derive the base URL from the
   // incoming request, so the app works regardless of host name or port.
   NEXTAUTH_URL: z.string().url().optional(),
+  // Explicit public origin (scheme://host) used for absolute links (e.g. the
+  // password-reset email). Set this when the app is behind a Cloudflare tunnel
+  // or reverse proxy that rewrites the Host header to localhost.
+  PUBLIC_BASE_URL: z.string().url().optional(),
   APP_DATA_KEY: z.string().optional(),
   BACKUP_DIR: z.string().optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),

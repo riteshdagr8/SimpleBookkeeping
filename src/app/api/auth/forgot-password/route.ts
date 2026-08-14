@@ -29,8 +29,9 @@ export async function POST(request: Request) {
     await prisma.passwordResetToken.create({
       data: { userId: user.id, tokenHash, expiresAt: new Date(Date.now() + 30 * 60 * 1000) },
     });
-    // Use the host the browser sent, not request.url's listen address (0.0.0.0).
-    const origin = process.env.NEXTAUTH_URL || requestOrigin(request);
+    // Use the public origin (PUBLIC_BASE_URL > NEXTAUTH_URL > request Host),
+    // never the server's listen address (0.0.0.0 / localhost behind a tunnel).
+    const origin = requestOrigin(request);
     const resetUrl = `${origin}/reset-password?token=${encodeURIComponent(rawToken)}`;
     await sendPasswordResetEmail(user.email, resetUrl);
     await writeAudit({ tenantId: user.tenantId, actorId: user.id, action: "PASSWORD_RESET_REQUESTED", entity: "User", entityId: user.id });
