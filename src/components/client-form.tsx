@@ -17,7 +17,9 @@ export interface ClientFormInitial {
   incorporationJurisdiction: "" | "Federal" | "Ontario";
   address: string;
   phone: string;
-  email: string;
+  primaryEmail: string;
+  secondaryEmail: string;
+  gstYearEnd: string;
   folderPath: string;
   qbPassword: string;
   onboardingStatus: string;
@@ -44,7 +46,9 @@ export const emptyClient: ClientFormInitial = {
   incorporationJurisdiction: "",
   address: "",
   phone: "",
-  email: "",
+  primaryEmail: "",
+  secondaryEmail: "",
+  gstYearEnd: "",
   folderPath: "",
   qbPassword: "",
   onboardingStatus: "In Progress",
@@ -95,6 +99,10 @@ export function ClientForm({
   const [showQb, setShowQb] = useState(false);
   const [qbLoading, setQbLoading] = useState(!!initial.id);
   const [qbLoaded, setQbLoaded] = useState<string | null>(null);
+  // True only when the user manually edits the QuickBooks password field. The
+  // auto-reveal populates qbPassword without marking dirty, so a routine save
+  // (or a failed reveal) never overwrites/clears the stored encrypted value.
+  const [qbDirty, setQbDirty] = useState(false);
   const [inactiveConfirm, setInactiveConfirm] = useState(false);
 
   function handleStatusChange(value: string) {
@@ -132,7 +140,7 @@ export function ClientForm({
 
   function payload() {
     return {
-      fileNumber: form.fileNumber.trim(),
+      fileNumber: form.fileNumber.trim() || null,
       legalName: form.legalName.trim(),
       contactName: form.contactName || null,
       businessNumber: form.businessNumber || null,
@@ -142,9 +150,10 @@ export function ClientForm({
       incorporationJurisdiction: form.incorporationJurisdiction || null,
       address: form.address || null,
       phone: form.phone || null,
-      email: form.email || null,
+      primaryEmail: form.primaryEmail,
+      secondaryEmail: form.secondaryEmail || null,
+      gstYearEnd: form.gstYearEnd || null,
       folderPath: form.folderPath || null,
-      qbPassword: form.qbPassword || null,
       onboardingStatus: form.onboardingStatus,
       hstApplicable: form.hstApplicable,
       hstFrequency: form.hstApplicable ? form.hstFrequency || null : null,
@@ -156,14 +165,18 @@ export function ClientForm({
       reviewYears: form.reviewYears,
       incorporationDocumentsReceived: form.incorporationDocumentsReceived,
       notes: form.notes || null,
+      // Only send qbPassword when the user explicitly edited the field.
+      // Omitting it lets resolveQb return undefined ("don't touch"), so a
+      // routine save never wipes the stored encrypted QuickBooks password.
+      qbPassword: qbDirty ? form.qbPassword || null : undefined,
     };
   }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!form.fileNumber || !form.legalName || !form.fiscalYearEnd) {
-      setError("File number, legal name, and fiscal year-end are required.");
+    if (!form.legalName || !form.fiscalYearEnd) {
+      setError("Legal name and fiscal year-end are required.");
       return;
     }
     setLoading(true);
@@ -195,7 +208,7 @@ export function ClientForm({
   return (
     <form onSubmit={onSubmit} className="space-y-3">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="File number *" value={form.fileNumber} onChange={(v) => set("fileNumber", v)} required />
+        <Field label="File number" value={form.fileNumber} onChange={(v) => set("fileNumber", v)} />
         <Field label="Legal name *" value={form.legalName} onChange={(v) => set("legalName", v)} required />
         <Field label="Contact name" value={form.contactName} onChange={(v) => set("contactName", v)} />
         <Field
@@ -240,7 +253,8 @@ export function ClientForm({
           onChange={handleStatusChange}
           options={["In Progress", "Onboarded", "Waiting on Documents", "Inactive"]}
         />
-        <Field label="Email" type="email" value={form.email} onChange={(v) => set("email", v)} />
+        <Field label="Primary email *" type="email" value={form.primaryEmail} onChange={(v) => set("primaryEmail", v)} required />
+        <Field label="Secondary email" type="email" value={form.secondaryEmail} onChange={(v) => set("secondaryEmail", v)} />
         <Field label="Phone" value={form.phone} onChange={(v) => set("phone", v)} />
         <Field label="Folder path" value={form.folderPath} onChange={(v) => set("folderPath", v)} />
       </div>
@@ -261,6 +275,7 @@ export function ClientForm({
               onChange={(e) => {
                 setQbLoaded(e.target.value);
                 set("qbPassword", e.target.value);
+                setQbDirty(true);
               }}
               className="block w-full rounded-md border border-border bg-bg-subtle px-3 py-2 text-fg outline-none focus:border-ring focus:ring-2 focus:ring-ring/30 disabled:opacity-50"
             />
@@ -291,7 +306,7 @@ export function ClientForm({
             Payroll applicable
           </label>
           <SelectField
-            label="Frequency"
+            label="Frequency (Employee pay frequency)"
             value={form.payrollFrequency}
             onChange={(v) => set("payrollFrequency", v as ClientFormInitial["payrollFrequency"])}
             options={["", "Weekly", "Bi-Weekly", "Semi-Monthly", "Monthly", "NA"]}
@@ -344,6 +359,7 @@ export function ClientForm({
               optionLabels={{ SelfEmployed: "Annual (Self-employed)" }}
               disabled={!form.hstApplicable}
             />
+            <SelectField label="GST year-end" value={form.gstYearEnd} onChange={(v) => set("gstYearEnd", v)} options={["", ...MONTH_NAMES]} disabled={!form.hstApplicable} />
           </div>
         </fieldset>
 
@@ -405,7 +421,7 @@ export function ClientForm({
       <div className="flex justify-end gap-2">
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || qbLoading}
           className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-fg hover:opacity-90 disabled:opacity-50"
         >
           {loading ? "Saving..." : submitLabel}
