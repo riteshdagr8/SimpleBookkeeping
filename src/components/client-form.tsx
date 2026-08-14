@@ -253,9 +253,9 @@ export function ClientForm({
           onChange={handleStatusChange}
           options={["In Progress", "Onboarded", "Waiting on Documents", "Inactive"]}
         />
+        <Field label="Phone" value={form.phone} onChange={(v) => set("phone", v)} />
         <Field label="Primary email *" type="email" value={form.primaryEmail} onChange={(v) => set("primaryEmail", v)} required />
         <Field label="Secondary email" type="email" value={form.secondaryEmail} onChange={(v) => set("secondaryEmail", v)} />
-        <Field label="Phone" value={form.phone} onChange={(v) => set("phone", v)} />
         <Field label="Folder path" value={form.folderPath} onChange={(v) => set("folderPath", v)} />
       </div>
 

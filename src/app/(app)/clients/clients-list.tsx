@@ -10,9 +10,6 @@ export interface ClientRow {
   fileNumber: string | null;
   legalName: string;
   businessNumber: string | null;
-  phone: string | null;
-  primaryEmail: string;
-  secondaryEmail: string | null;
   fiscalYearEnd: string;
   reviewComplete: boolean;
   onboardingStatus: string;
@@ -148,15 +145,6 @@ export function ClientsList({ clients, userRole }: Props) {
                     <Link href={`/clients/${c.id}`} className="text-fg hover:text-primary hover:underline">
                       {c.legalName}
                     </Link>
-                    {(c.primaryEmail || c.secondaryEmail) && (
-                      <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-fg-muted">
-                        {c.primaryEmail && <span>{c.primaryEmail}</span>}
-                        {c.primaryEmail && c.secondaryEmail && (
-                          <span className="text-fg-muted/50">·</span>
-                        )}
-                        {c.secondaryEmail && <span>{c.secondaryEmail}</span>}
-                      </div>
-                    )}
                   </td>
                   <td className="px-4 py-2 text-fg-muted">{c.businessNumber ?? "—"}</td>
                   <td className="px-4 py-2 text-fg-muted">
@@ -176,16 +164,13 @@ export function ClientsList({ clients, userRole }: Props) {
                     )}
                   </td>
                   <td className="px-4 py-2">
-                    <div className="flex items-center gap-3">
-                      {isInactive ? (
-                        <span className="rounded-full bg-bg-subtle px-2 py-0.5 text-xs text-fg-muted">
-                          Inactive
-                        </span>
-                      ) : (
-                        <span className="text-fg-muted">{c.onboardingStatus}</span>
-                      )}
-                      {c.phone && <span className="text-xs text-fg-muted">{c.phone}</span>}
-                    </div>
+                    {isInactive ? (
+                      <span className="rounded-full bg-bg-subtle px-2 py-0.5 text-xs text-fg-muted">
+                        Inactive
+                      </span>
+                    ) : (
+                      <span className="text-fg-muted">{c.onboardingStatus}</span>
+                    )}
                   </td>
                   <td className="px-4 py-2 text-right">
                     <div className="flex items-center justify-end gap-3">
