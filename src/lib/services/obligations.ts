@@ -3,10 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/services/audit";
 import {
   federalAnnualReturn,
+  hstMonthlyPeriods,
   hstPeriods,
   infoReturnDeadlines,
   ontarioAnnualReturn,
   payrollRemittancePeriodsRolling,
+  payrollRunPeriods,
   t2Deadlines,
   utc,
 } from "@/lib/compliance-rules";
@@ -19,6 +21,7 @@ const HST_FREQUENCIES = ["Monthly", "Quarterly", "Annual", "SelfEmployed"] as co
 // rule math for them is not yet implemented — payrollRemittancePeriods returns []
 // for these values, so accelerated clients won't have payroll rows generated.
 const REMITTER_TYPES = ["Regular", "Quarterly", "Accelerated1", "Accelerated2"] as const;
+const PAYROLL_FREQUENCIES = ["Weekly", "Bi-Weekly", "Semi-Monthly", "Monthly"] as const;
 
 export const updateSchema = z.object({
   status: z.enum(OBLIGATION_STATUSES).optional(),
@@ -116,7 +119,8 @@ export async function generateObligationsForClient(
 
   function inWindow(d: Date | null | undefined): boolean {
     if (!d) return false;
-    return d.getTime() <= windowEnd.getTime();
+    // Lower bound too: don't re-generate stale rows from before the window start.
+    return d.getTime() >= windowStart.getTime() && d.getTime() <= windowEnd.getTime();
   }
 
   // Fiscal year start: the day after the prior FYE.
@@ -142,35 +146,60 @@ export async function generateObligationsForClient(
     });
   }
 
-  // HST — generate the current FYE year and the next FYE year if it falls
-  // within the window. The FYE year is the calendar year containing the FYE
-  // date. For a non-Dec FYE, "current FYE year" is the year whose FYE is the
-  // most recent one on or before today.
+  // HST — Monthly periods are anchored to the rolling window (like payroll
+  // remittances) so the schedule always covers the current + next 12 months,
+  // regardless of gstYearEnd/FYE. Quarterly/Annual/SelfEmployed keep the
+  // gstYearEnd/FYE anchor via hstPeriods.
   if (
     client.hstApplicable &&
     client.hstFrequency &&
     HST_FREQUENCIES.includes(client.hstFrequency as (typeof HST_FREQUENCIES)[number])
   ) {
-    const fyeForHst = client.hstFrequency as (typeof HST_FREQUENCIES)[number];
-    for (const yearOffset of [0, 1]) {
-      const targetFye = new Date(fye);
-      targetFye.setUTCFullYear(targetFye.getUTCFullYear() + yearOffset);
-      const periods = hstPeriods(targetFye, fyeForHst);
-      for (const p of periods) {
-        // Include this period if either its due date OR periodStart is within the
-        // rolling window. The current FYE year is always included for the
-        // "this month" default filter; the next FYE year is included only if
-        // its first period is in the window.
-        if (inWindow(p.filingDue) || (p.periodStart && p.periodStart.getTime() <= windowEnd.getTime())) {
-          rows.push({
-            clientId,
-            filingType: "HST",
-            periodStart: p.periodStart,
-            periodEnd: p.periodEnd,
-            filingDueDate: p.filingDue,
-            paymentDueDate: p.paymentDue,
-            status: "Pending",
-          });
+    const hstFrequency = client.hstFrequency as (typeof HST_FREQUENCIES)[number];
+    if (hstFrequency === "Monthly") {
+      for (const p of hstMonthlyPeriods(windowStart)) {
+        rows.push({
+          clientId,
+          filingType: "HST",
+          periodStart: p.periodStart,
+          periodEnd: p.periodEnd,
+          filingDueDate: p.filingDue,
+          paymentDueDate: p.paymentDue,
+          status: "Pending",
+        });
+      }
+    } else {
+      const gstMonthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      const gstMonth = client.gstYearEnd ? gstMonthNames.findIndex((m) => m.toLowerCase() === client.gstYearEnd!.toLowerCase()) + 1 : 0;
+      const anchorYear = gstMonth > 0
+        ? windowStart.getUTCFullYear() + (windowStart.getUTCMonth() + 1 > gstMonth ? 1 : 0)
+        : fye.getUTCFullYear();
+      for (const yearOffset of [0, 1]) {
+        const targetFye = gstMonth > 0
+          ? utc(anchorYear + yearOffset, gstMonth + 1, 0)
+          : new Date(Date.UTC(fye.getUTCFullYear() + yearOffset, fye.getUTCMonth(), fye.getUTCDate()));
+        const periods = hstPeriods(targetFye, hstFrequency, client.gstYearEnd);
+        for (const p of periods) {
+          // Include the period if its due date falls in the window, or the
+          // period itself overlaps the window (so we don't re-add stale rows
+          // that ended entirely before the window start).
+          if (
+            inWindow(p.filingDue) ||
+            (p.periodStart &&
+              p.periodEnd &&
+              p.periodStart.getTime() <= windowEnd.getTime() &&
+              p.periodEnd.getTime() >= windowStart.getTime())
+          ) {
+            rows.push({
+              clientId,
+              filingType: "HST",
+              periodStart: p.periodStart,
+              periodEnd: p.periodEnd,
+              filingDueDate: p.filingDue,
+              paymentDueDate: p.paymentDue,
+              status: "Pending",
+            });
+          }
         }
       }
     }
@@ -240,6 +269,27 @@ export async function generateObligationsForClient(
       rows.push({
         clientId,
         filingType: "PayrollRemittance",
+        periodStart: p.periodStart,
+        periodEnd: p.periodEnd,
+        filingDueDate: p.filingDue,
+        paymentDueDate: p.paymentDue,
+        status: "Pending",
+      });
+    }
+  }
+
+  // Employee payroll processing runs, driven by pay frequency.
+  if (
+    client.payrollApplicable &&
+    client.payrollFrequency &&
+    PAYROLL_FREQUENCIES.includes(client.payrollFrequency as (typeof PAYROLL_FREQUENCIES)[number])
+  ) {
+    const frequency = client.payrollFrequency as (typeof PAYROLL_FREQUENCIES)[number];
+    for (const p of payrollRunPeriods(windowStart, frequency)) {
+      if (!inWindow(p.filingDue)) continue;
+      rows.push({
+        clientId,
+        filingType: "PayrollProcessing",
         periodStart: p.periodStart,
         periodEnd: p.periodEnd,
         filingDueDate: p.filingDue,

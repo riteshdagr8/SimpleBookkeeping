@@ -46,9 +46,12 @@ export function t2Deadlines(
 /** HST returns based on the fiscal year that the FYE closes. */
 export function hstPeriods(
   fye: Date,
-  frequency: "Monthly" | "Quarterly" | "Annual" | "SelfEmployed"
+  frequency: "Monthly" | "Quarterly" | "Annual" | "SelfEmployed",
+  gstYearEnd?: string | null
 ): Period[] {
   const year = fye.getUTCFullYear();
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const yearEndMonth = gstYearEnd ? monthNames.findIndex((m) => m.toLowerCase() === gstYearEnd.toLowerCase()) + 1 : 0;
   if (frequency === "Monthly") {
     const periods: Period[] = [];
     for (let m = 0; m < 12; m++) {
@@ -65,16 +68,18 @@ export function hstPeriods(
     return periods;
   }
   if (frequency === "Quarterly") {
-    const quarterEnds = [
-      utc(year, 3, 31),
-      utc(year, 6, 30),
-      utc(year, 9, 30),
-      utc(year, 12, 31),
-    ];
+    const quarterEnds = yearEndMonth > 0
+      ? [1, 2, 3, 4].map((q) => {
+          const endMonth = ((yearEndMonth + q * 3 - 1) % 12) + 1;
+          const endYear = year - (endMonth > yearEndMonth ? 1 : 0);
+          // utc(y, m, 0) is the last day of month m-1, so pass endMonth+1 to get
+          // the last day of endMonth (e.g., endMonth 9 -> utc(..., 10, 0) = Sep 30).
+          return utc(endYear, endMonth + 1, 0);
+        })
+      : [utc(year, 3, 31), utc(year, 6, 30), utc(year, 9, 30), utc(year, 12, 31)];
     return quarterEnds.map((periodEnd) => {
-      // periodEnd.getUTCMonth() is 0-based; utc() takes 1-based months. Q1 ends Mar (2)
-      // and starts Jan (1), so subtract 1: 2-1=1, utc(year,1,1)=Jan 1.
-      const periodStart = utc(periodEnd.getUTCFullYear(), periodEnd.getUTCMonth() - 1, 1);
+      const periodStart = addMonths(periodEnd, -2);
+      periodStart.setUTCDate(1);
       // Due: last day of the month following the quarter end (day 0 of the month after that)
       const dueM1 = periodEnd.getUTCMonth() + 2; // 1-based month after the quarter end
       const dueY = periodEnd.getUTCFullYear() + Math.floor(dueM1 / 12);
@@ -100,12 +105,46 @@ export function hstPeriods(
     ];
   }
   // Annual corporate HST
+  if (yearEndMonth > 0) {
+    // GST year-end anchored: the period runs from the day after the prior
+    // year-end through this year's year-end (e.g., Jul 1 to Jun 30 for a
+    // June year-end). `fye` is the year-end date in the target year.
+    const periodEnd = fye;
+    const periodStart = addDays(addMonths(periodEnd, -12), 1);
+    const due = addMonths(periodEnd, 3);
+    return [{ periodStart, periodEnd, filingDue: due, paymentDue: due }];
+  }
   const periodStart = addMonths(fye, 1);
   periodStart.setUTCDate(1);
   periodStart.setUTCHours(0, 0, 0, 0);
   const periodEnd = fye;
   const due = addMonths(fye, 3);
   return [{ periodStart, periodEnd, filingDue: due, paymentDue: due }];
+}
+
+/**
+ * Monthly HST periods over a rolling 12-month window starting at `start`
+ * (typically the first of the current month). Mirrors the due-date math in
+ * hstPeriods' Monthly branch (due = last day of the month following the
+ * period) but anchored to the window instead of a calendar year, so the
+ * schedule tracks the current + next 12 months regardless of gstYearEnd/FYE.
+ */
+export function hstMonthlyPeriods(start: Date): Period[] {
+  const periods: Period[] = [];
+  for (let i = 0; i < 12; i++) {
+    const m = new Date(start);
+    m.setUTCMonth(m.getUTCMonth() + i);
+    const year = m.getUTCFullYear();
+    const periodMonth = m.getUTCMonth(); // 0-based
+    const periodStart = utc(year, periodMonth + 1, 1);
+    const periodEnd = utc(year, periodMonth + 2, 0);
+    const dueMonth1 = periodMonth + 3; // 1-based month after the following month
+    const dueY = year + Math.floor((dueMonth1 - 1) / 12);
+    const dueM1 = ((dueMonth1 - 1) % 12) + 1;
+    const due = utc(dueY, dueM1, 0);
+    periods.push({ periodStart, periodEnd, filingDue: due, paymentDue: due });
+  }
+  return periods;
 }
 
 /** Ontario Annual Return: due 6 months after taxation year-end. */
@@ -193,6 +232,38 @@ export function payrollRemittancePeriods(
  * within the window. For Monthly, returns 12 monthly periods starting at
  * `start`. For Accelerated1/2, returns [] (rule math not yet implemented).
  */
+export function payrollRunPeriods(
+  start: Date,
+  frequency: "Weekly" | "Bi-Weekly" | "Semi-Monthly" | "Monthly"
+): Period[] {
+  const out: Period[] = [];
+  const add = (periodStart: Date, periodEnd: Date) =>
+    out.push({ periodStart, periodEnd, filingDue: periodEnd, paymentDue: periodEnd });
+  if (frequency === "Weekly" || frequency === "Bi-Weekly") {
+    const count = frequency === "Weekly" ? 52 : 26;
+    const days = frequency === "Weekly" ? 7 : 14;
+    for (let i = 0; i < count; i++) {
+      const periodStart = addDays(start, i * days);
+      add(periodStart, addDays(periodStart, days - 1));
+    }
+    return out;
+  }
+  for (let i = 0; i < 12; i++) {
+    const month = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + i, 1));
+    const year = month.getUTCFullYear();
+    const monthIndex = month.getUTCMonth();
+    const last = new Date(Date.UTC(year, monthIndex + 1, 0));
+    add(new Date(month), new Date(Date.UTC(year, monthIndex, 15)));
+    if (frequency === "Semi-Monthly") {
+      add(new Date(Date.UTC(year, monthIndex, 16)), last);
+    }
+    if (frequency === "Monthly") {
+      out[out.length - 1] = { periodStart: new Date(month), periodEnd: last, filingDue: last, paymentDue: last };
+    }
+  }
+  return out;
+}
+
 export function payrollRemittancePeriodsRolling(
   start: Date,
   remitterType: "Regular" | "Quarterly" | "Accelerated1" | "Accelerated2"
