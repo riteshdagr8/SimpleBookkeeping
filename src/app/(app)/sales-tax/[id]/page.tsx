@@ -3,7 +3,7 @@ import {
   WorkflowDetailView,
 } from "@/app/(app)/workflow-page-helpers";
 
-export default async function OntarioArDetailPage({
+export default async function SalesTaxDetailPage({
   params,
   searchParams,
 }: {
@@ -12,6 +12,6 @@ export default async function OntarioArDetailPage({
 }) {
   const { id } = await params;
   const sp = await searchParams;
-  const props = await buildWorkflowDetailProps("OntarioAR", id, sp);
+  const props = await buildWorkflowDetailProps("SalesTax", id, sp);
   return <WorkflowDetailView {...props} />;
 }

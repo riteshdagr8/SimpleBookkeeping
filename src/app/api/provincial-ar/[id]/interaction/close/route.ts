@@ -1,2 +1,2 @@
 import { buildInteractionCloseHandler } from "@/app/api/workflow-route-helpers";
-export const POST = buildInteractionCloseHandler("GSTHST");
+export const POST = buildInteractionCloseHandler("ProvincialAR");

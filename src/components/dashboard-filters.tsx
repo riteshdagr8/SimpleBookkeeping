@@ -3,26 +3,35 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 
-const STATUSES = ["", "Pending", "InProgress", "Completed", "WaitingOnClient"] as const;
+const STATUSES = ["all", "Pending", "InProgress", "Completed", "WaitingOnClient"] as const;
 
 const STATUS_LABELS: Record<string, string> = {
+  all: "All",
   Pending: "Pending",
   InProgress: "In Progress",
   Completed: "Completed",
   WaitingOnClient: "Waiting on Client",
 };
 
-const TYPES = ["", "T2", "HST", "PayrollRemittance", "OntarioAnnualReturn", "FederalAnnualReturn", "T4", "T4A", "T5"] as const;
+const TYPES = ["", "T2", "T1", "T5013", "T3", "HST", "GST", "GSTQST", "PST", "RST", "PayrollRemittance", "ProvincialAnnualReturn", "FederalAnnualReturn", "T4", "T4A", "T5", "T3Slips"] as const;
 
 const TYPE_LABELS: Record<string, string> = {
-  T2: "Corporate Tax Return",
+  T2: "Corporate Tax Return (T2)",
+  T1: "Personal Tax Return (T1)",
+  T5013: "Partnership Return (T5013)",
+  T3: "Trust Return (T3)",
   HST: "GST/HST",
+  GST: "GST Return",
+  GSTQST: "GST/QST Return",
+  PST: "PST Return",
+  RST: "RST Return",
   PayrollRemittance: "Payroll Remittance",
-  OntarioAnnualReturn: "Ontario Annual Return",
+  ProvincialAnnualReturn: "Provincial Annual Return",
   FederalAnnualReturn: "Federal Annual Return",
   T4: "T4",
   T4A: "T4A",
   T5: "T5",
+  T3Slips: "T3 Slips & Summary",
 };
 
 function toIsoDate(d: Date): string {
@@ -106,13 +115,13 @@ export function DashboardFilters() {
           <label className="block text-xs font-medium text-fg-muted">Status</label>
           <select
             key={params.get("status") ?? "empty"}
-            defaultValue={params.get("status") ?? ""}
+            defaultValue={params.get("status") ?? "Pending"}
             onChange={(e) => update("status", e.target.value)}
             className="mt-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-fg"
           >
             {STATUSES.map((s) => (
-              <option key={s || "all"} value={s}>
-                {s ? (STATUS_LABELS[s] ?? s) : "All"}
+              <option key={s} value={s}>
+                {STATUS_LABELS[s] ?? s}
               </option>
             ))}
           </select>

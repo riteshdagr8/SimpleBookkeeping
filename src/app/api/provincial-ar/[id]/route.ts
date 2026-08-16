@@ -1,2 +1,2 @@
 import { buildWorkflowPutHandler } from "@/app/api/workflow-route-helpers";
-export const PUT = buildWorkflowPutHandler("GSTHST");
+export const PUT = buildWorkflowPutHandler("ProvincialAR");

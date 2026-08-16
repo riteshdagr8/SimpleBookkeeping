@@ -11,7 +11,21 @@ import { WorkflowEditor } from "@/components/workflow-editor";
 import type { WorkflowType } from "@/lib/workflows/types";
 
 const FILING_TYPE_LABELS: Record<string, string> = {
+  T2: "Corporate Tax Return (T2)",
+  T1: "Personal Tax Return (T1)",
+  T5013: "Partnership Return (T5013)",
+  T3: "Trust Return (T3)",
   HST: "GST/HST",
+  GST: "GST Return",
+  GSTQST: "GST/QST Return",
+  PST: "PST Return",
+  RST: "RST Return",
+  FederalAnnualReturn: "Federal Annual Return",
+  ProvincialAnnualReturn: "Provincial Annual Return",
+  T4: "T4",
+  T4A: "T4A",
+  T5: "T5",
+  T3Slips: "T3 Slips & Summary",
 };
 
 function filingTypeLabel(t: string): string {
@@ -31,11 +45,17 @@ export async function buildWorkflowListProps(
   const config = getConfigByType(type);
   if (!config) notFound();
 
+  // Status defaults to "Pending" on initial load; "all" (or an empty param)
+  // shows everything.
+  const statusFilter =
+    searchParams.status === "all" || searchParams.status === ""
+      ? undefined
+      : searchParams.status ?? "Pending";
   const filters = {
     clientId: searchParams.clientId,
     from: searchParams.from ? new Date(searchParams.from) : undefined,
     to: searchParams.to ? new Date(searchParams.to) : undefined,
-    status: searchParams.status,
+    status: statusFilter,
   };
   const rows = await listWorkflows(user.tenantId, type, filters);
 
@@ -197,18 +217,20 @@ export async function buildWorkflowDetailProps(
     .filter((s) => !s.condition || s.condition({ client: obligation.client }))
     .map((s) => ({ key: s.key, label: s.label, comment: s.comment }));
 
-  // For Info Returns, customize the display name and step labels based on the
-  // specific filing type (T4, T4A, or T5).
-  const displayName = type === "InfoReturn" && config.filingTypes.length > 1
-    ? `${config.shortName} — ${obligation.filingType} Filing`
+  // For multi-type configs (Income Taxes, Sales Tax, Info Returns), customize
+  // the display name and step labels based on the specific filing type.
+  const isMultiType = config.filingTypes.length > 1;
+  const displayName = isMultiType
+    ? `${config.shortName} — ${filingTypeLabel(obligation.filingType)}`
     : config.displayName;
 
-  if (type === "InfoReturn" && config.filingTypes.length > 1) {
+  if (isMultiType) {
     visibleSteps = visibleSteps.map((s) => ({
       ...s,
-      label: s.label.replace(/T4\/T4A\/T5/gi, obligation.filingType)
-        .replace("Slips prepared", `${obligation.filingType} slips prepared`)
-        .replace("Summary prepared", `${obligation.filingType} Summary prepared`),
+      label: s.label
+        .replace(/T4\/T4A\/T5/gi, filingTypeLabel(obligation.filingType))
+        .replace(/Slips prepared/gi, `${filingTypeLabel(obligation.filingType)} slips prepared`)
+        .replace(/Summary prepared/gi, `${filingTypeLabel(obligation.filingType)} Summary prepared`),
     }));
   }
 

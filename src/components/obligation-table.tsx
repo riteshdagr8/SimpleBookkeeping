@@ -29,12 +29,23 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  T2: "Corporate Tax Return",
+  T2: "Corporate Tax Return (T2)",
+  T1: "Personal Tax Return (T1)",
+  T5013: "Partnership Return (T5013)",
+  T3: "Trust Return (T3)",
   HST: "GST/HST",
+  GST: "GST Return",
+  GSTQST: "GST/QST Return",
+  PST: "PST Return",
+  RST: "RST Return",
   PayrollRemittance: "Payroll Remittance",
   PayrollProcessing: "Payroll Processing",
-  OntarioAnnualReturn: "Ontario Annual Return",
+  ProvincialAnnualReturn: "Provincial Annual Return",
   FederalAnnualReturn: "Federal Annual Return",
+  T4: "T4",
+  T4A: "T4A",
+  T5: "T5",
+  T3Slips: "T3 Slips & Summary",
 };
 
 function typeLabel(t: string): string {

@@ -10,20 +10,29 @@ import { ObligationTable } from "@/components/obligation-table";
 import { getConfigByFilingType } from "@/lib/workflows/configs";
 
 const WORKFLOW_FILING_TYPES = new Set([
-  "PayrollRemittance", "HST", "T2", "OntarioAnnualReturn",
-  "FederalAnnualReturn", "T4", "T4A", "T5",
+  "PayrollRemittance", "HST", "GSTQST", "GST", "PST", "RST",
+  "T2", "T1", "T5013", "T3", "ProvincialAnnualReturn",
+  "FederalAnnualReturn", "T4", "T4A", "T5", "T3Slips",
 ]);
 
 /** Filing type → Prisma model name */
 const FILING_TYPE_TO_MODEL: Record<string, string> = {
   PayrollRemittance: "payrollProcessing",
   HST: "gSTHSTProcessing",
+  GSTQST: "gSTHSTProcessing",
+  GST: "gSTHSTProcessing",
+  PST: "gSTHSTProcessing",
+  RST: "gSTHSTProcessing",
   T2: "t2Processing",
-  OntarioAnnualReturn: "ontarioARProcessing",
+  T1: "t2Processing",
+  T5013: "t2Processing",
+  T3: "t2Processing",
+  ProvincialAnnualReturn: "ontarioARProcessing",
   FederalAnnualReturn: "federalARProcessing",
   T4: "infoReturnProcessing",
   T4A: "infoReturnProcessing",
   T5: "infoReturnProcessing",
+  T3Slips: "infoReturnProcessing",
 };
 
 async function getWorkflowStatuses(

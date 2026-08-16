@@ -47,9 +47,9 @@ export function modelByType(type: WorkflowType): {
   // Prisma's generated client types each model separately. We access via the
   // dynamic `prisma[modelName]` API and return a small facade.
   const m = prisma[type === "Payroll" ? "payrollProcessing" :
-    type === "GSTHST" ? "gSTHSTProcessing" :
-    type === "T2" ? "t2Processing" :
-    type === "OntarioAR" ? "ontarioARProcessing" :
+    type === "SalesTax" ? "gSTHSTProcessing" :
+    type === "IncomeTax" ? "t2Processing" :
+    type === "ProvincialAR" ? "ontarioARProcessing" :
     type === "FederalAR" ? "federalARProcessing" :
     "infoReturnProcessing"] as unknown as {
     findUnique: (args: { where: { obligationId: string } }) => Promise<unknown>;

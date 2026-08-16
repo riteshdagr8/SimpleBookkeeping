@@ -2,9 +2,9 @@
 
 export type WorkflowType =
   | "Payroll"
-  | "GSTHST"
-  | "T2"
-  | "OntarioAR"
+  | "SalesTax"
+  | "IncomeTax"
+  | "ProvincialAR"
   | "FederalAR"
   | "InfoReturn";
 

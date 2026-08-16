@@ -4,12 +4,20 @@ import { prisma } from "@/lib/prisma";
 export const FILING_TYPE_TO_MODEL: Record<string, string> = {
   PayrollRemittance: "payrollProcessing",
   HST: "gSTHSTProcessing",
+  GSTQST: "gSTHSTProcessing",
+  GST: "gSTHSTProcessing",
+  PST: "gSTHSTProcessing",
+  RST: "gSTHSTProcessing",
   T2: "t2Processing",
-  OntarioAnnualReturn: "ontarioARProcessing",
+  T1: "t2Processing",
+  T5013: "t2Processing",
+  T3: "t2Processing",
+  ProvincialAnnualReturn: "ontarioARProcessing",
   FederalAnnualReturn: "federalARProcessing",
   T4: "infoReturnProcessing",
   T4A: "infoReturnProcessing",
   T5: "infoReturnProcessing",
+  T3Slips: "infoReturnProcessing",
 };
 
 /**

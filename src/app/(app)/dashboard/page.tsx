@@ -18,12 +18,20 @@ interface SP {
 const FILING_TYPE_TO_MODEL: Record<string, string> = {
   PayrollRemittance: "payrollProcessing",
   HST: "gSTHSTProcessing",
+  GSTQST: "gSTHSTProcessing",
+  GST: "gSTHSTProcessing",
+  PST: "gSTHSTProcessing",
+  RST: "gSTHSTProcessing",
   T2: "t2Processing",
-  OntarioAnnualReturn: "ontarioARProcessing",
+  T1: "t2Processing",
+  T5013: "t2Processing",
+  T3: "t2Processing",
+  ProvincialAnnualReturn: "ontarioARProcessing",
   FederalAnnualReturn: "federalARProcessing",
   T4: "infoReturnProcessing",
   T4A: "infoReturnProcessing",
   T5: "infoReturnProcessing",
+  T3Slips: "infoReturnProcessing",
 };
 
 async function getWorkflowStatuses(
@@ -56,11 +64,23 @@ async function getWorkflowStatuses(
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  T2: "Corporate Tax Return",
+  T2: "Corporate Tax Return (T2)",
+  T1: "Personal Tax Return (T1)",
+  T5013: "Partnership Return (T5013)",
+  T3: "Trust Return (T3)",
   HST: "GST/HST",
+  GST: "GST Return",
+  GSTQST: "GST/QST Return",
+  PST: "PST Return",
+  RST: "RST Return",
   PayrollRemittance: "Payroll Remittance",
-  OntarioAnnualReturn: "Ontario Annual Return",
+  PayrollProcessing: "Payroll Processing",
+  ProvincialAnnualReturn: "Provincial Annual Return",
   FederalAnnualReturn: "Federal Annual Return",
+  T4: "T4",
+  T4A: "T4A",
+  T5: "T5",
+  T3Slips: "T3 Slips & Summary",
 };
 
 function typeLabel(t: string): string {
@@ -144,11 +164,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   }
 
   // Apply the simplified status filter after computing effective status.
+  // Defaults to "Pending" on initial load; "all" (or an empty param) shows everything.
+  const statusFilter =
+    sp.status === "all" || sp.status === "" ? undefined : sp.status ?? "Pending";
   let filtered = obligations;
-  if (sp.status) {
+  if (statusFilter) {
     filtered = filtered.filter((o) => {
       const cat = classifyStatus(effectiveStatus(o));
-      return cat === sp.status;
+      return cat === statusFilter;
     });
   }
 

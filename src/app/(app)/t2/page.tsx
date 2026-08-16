@@ -1,14 +1,5 @@
-import {
-  buildWorkflowListProps,
-  WorkflowListView,
-} from "@/app/(app)/workflow-page-helpers";
+import { redirect } from "next/navigation";
 
-export default async function T2ListPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ clientId?: string; from?: string; to?: string; status?: string }>;
-}) {
-  const sp = await searchParams;
-  const props = await buildWorkflowListProps("T2", sp);
-  return <WorkflowListView {...props} />;
+export default function T2Redirect() {
+  redirect("/income-taxes");
 }

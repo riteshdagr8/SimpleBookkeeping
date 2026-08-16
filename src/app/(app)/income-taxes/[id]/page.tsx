@@ -3,7 +3,7 @@ import {
   WorkflowDetailView,
 } from "@/app/(app)/workflow-page-helpers";
 
-export default async function GstHstDetailPage({
+export default async function IncomeTaxDetailPage({
   params,
   searchParams,
 }: {
@@ -12,6 +12,6 @@ export default async function GstHstDetailPage({
 }) {
   const { id } = await params;
   const sp = await searchParams;
-  const props = await buildWorkflowDetailProps("GSTHST", id, sp);
+  const props = await buildWorkflowDetailProps("IncomeTax", id, sp);
   return <WorkflowDetailView {...props} />;
 }

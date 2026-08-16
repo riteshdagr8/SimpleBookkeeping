@@ -3,7 +3,7 @@ import {
   WorkflowDetailView,
 } from "@/app/(app)/workflow-page-helpers";
 
-export default async function T2DetailPage({
+export default async function ProvincialARDetailPage({
   params,
   searchParams,
 }: {
@@ -12,6 +12,6 @@ export default async function T2DetailPage({
 }) {
   const { id } = await params;
   const sp = await searchParams;
-  const props = await buildWorkflowDetailProps("T2", id, sp);
+  const props = await buildWorkflowDetailProps("ProvincialAR", id, sp);
   return <WorkflowDetailView {...props} />;
 }

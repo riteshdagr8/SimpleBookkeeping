@@ -34,12 +34,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <nav className="flex flex-col gap-1 p-3 text-sm">
               <NavLink href="/dashboard">Dashboard</NavLink>
               <NavLink href="/clients">Clients</NavLink>
+              <NavLink href="/income-taxes">Income Taxes</NavLink>
+              <NavLink href="/sales-tax">Sales Tax</NavLink>
               <NavLink href="/payroll">Payroll</NavLink>
-              <NavLink href="/gst-hst">GST/HST</NavLink>
-              <NavLink href="/t2">Corporate Tax Return</NavLink>
-              <NavLink href="/ontario-ar">Ontario AR</NavLink>
               <NavLink href="/federal-ar">Federal AR</NavLink>
-              <NavLink href="/info-returns">Info Returns</NavLink>
+              <NavLink href="/provincial-ar">Provincial AR</NavLink>
+              <NavLink href="/info-returns">Information Returns</NavLink>
               <div className="mt-2 border-t border-border pt-2">
                 <NavLink href="/monitoring">Monitoring</NavLink>
                 <NavLink href="/settings/theme">Theme</NavLink>

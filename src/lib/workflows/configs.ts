@@ -71,14 +71,14 @@ export const WORKFLOW_CONFIGS: Record<string, WorkflowConfig> = {
     ],
   },
 
-  GSTHST: {
-    slug: "gst-hst",
-    displayName: "GST/HST Filing",
-    shortName: "GST/HST",
-    filingTypes: ["HST"],
+  SalesTax: {
+    slug: "sales-tax",
+    displayName: "Sales Tax",
+    shortName: "Sales Tax",
+    filingTypes: ["HST", "GSTQST", "GST", "PST", "RST"],
     prismaModel: "gstHstProcessing",
     allowsClientInteraction: true,
-    interactionType: "GSTHST",
+    interactionType: "SalesTax",
     initialStatus: "Pending",
     // 6 steps → 6 statuses.
     statusByStep: ["Ready", "Reconciled", "Reviewed", "Prepared", "Approved", "Completed"],
@@ -87,7 +87,7 @@ export const WORKFLOW_CONFIGS: Record<string, WorkflowConfig> = {
         key: "infoCollected",
         label: "Information collected",
         comment:
-          "Collect bank statements, credit card statements, sales records, expense receipts, and other supporting documents from the client.",
+          "Collect bank statements, sales records, expense receipts, and other supporting documents from the client.",
       },
       {
         key: "bookkeepingCompleted",
@@ -97,12 +97,12 @@ export const WORKFLOW_CONFIGS: Record<string, WorkflowConfig> = {
       {
         key: "reviewCompleted",
         label: "Review completed",
-        comment: "Review sales, expenses, and HST balances.",
+        comment: "Review sales, expenses, and tax balances.",
       },
       {
         key: "returnPrepared",
         label: "Return prepared",
-        comment: "Prepare the HST return.",
+        comment: "Prepare the sales tax return.",
       },
       {
         key: "approved",
@@ -112,7 +112,7 @@ export const WORKFLOW_CONFIGS: Record<string, WorkflowConfig> = {
       {
         key: "filed",
         label: "Filed",
-        comment: "File the HST return through the CRA portal.",
+        comment: "File the return through the CRA or provincial portal.",
         fieldsSatisfied: (fields) => fields.filingDate != null && fields.filingDate !== "",
       },
     ],
@@ -122,27 +122,27 @@ export const WORKFLOW_CONFIGS: Record<string, WorkflowConfig> = {
     ],
   },
 
-  T2: {
-    slug: "t2",
-    displayName: "Corporate Tax Return (T2)",
-    shortName: "T2",
-    filingTypes: ["T2"],
+  IncomeTax: {
+    slug: "income-taxes",
+    displayName: "Income Taxes",
+    shortName: "Income Tax",
+    filingTypes: ["T2", "T1", "T5013", "T3"],
     prismaModel: "t2Processing",
     allowsClientInteraction: true,
-    interactionType: "T2",
+    interactionType: "IncomeTax",
     initialStatus: "Pending",
     // 5 steps → 5 statuses.
     statusByStep: ["Ready", "Prepared", "Reviewed", "Filed", "Completed"],
     steps: [
       {
-        key: "financialStatementsObtained",
-        label: "Year-end financial statements obtained",
-        comment: "Obtain year-end financial statements.",
+        key: "infoCollected",
+        label: "Information collected",
+        comment: "Collect the client's financial information and supporting documents.",
       },
       {
         key: "returnPrepared",
-        label: "Corporate tax return prepared",
-        comment: "Prepare the corporate tax return using the Profile system.",
+        label: "Return prepared",
+        comment: "Prepare the income tax return.",
       },
       {
         key: "reviewedWithClient",
@@ -151,8 +151,8 @@ export const WORKFLOW_CONFIGS: Record<string, WorkflowConfig> = {
       },
       {
         key: "filed",
-        label: "Filed with CRA",
-        comment: "File the return with the CRA.",
+        label: "Filed",
+        comment: "File the return with the CRA or applicable agency.",
       },
       {
         key: "approvalReceived",
@@ -167,14 +167,14 @@ export const WORKFLOW_CONFIGS: Record<string, WorkflowConfig> = {
     ],
   },
 
-  OntarioAR: {
-    slug: "ontario-ar",
-    displayName: "Ontario Annual Return",
-    shortName: "Ontario AR",
-    filingTypes: ["OntarioAnnualReturn"],
+  ProvincialAR: {
+    slug: "provincial-ar",
+    displayName: "Provincial Annual Return",
+    shortName: "Provincial AR",
+    filingTypes: ["ProvincialAnnualReturn"],
     prismaModel: "ontarioARProcessing",
     allowsClientInteraction: true,
-    interactionType: "OntarioAR",
+    interactionType: "ProvincialAR",
     initialStatus: "Pending",
     // 2 steps → 2 statuses.
     statusByStep: ["Prepared", "Completed"],
@@ -182,12 +182,12 @@ export const WORKFLOW_CONFIGS: Record<string, WorkflowConfig> = {
       {
         key: "returnPrepared",
         label: "Return prepared",
-        comment: "Prepare the Ontario annual return.",
+        comment: "Prepare the provincial annual return.",
       },
       {
         key: "filed",
-        label: "Filed with Ontario Business Registry",
-        comment: "File the Ontario annual return.",
+        label: "Filed with the provincial registry",
+        comment: "File the provincial annual return with the applicable registry.",
         fieldsSatisfied: (fields) => fields.filingDate != null && fields.filingDate !== "",
       },
     ],
@@ -231,9 +231,9 @@ export const WORKFLOW_CONFIGS: Record<string, WorkflowConfig> = {
 
   InfoReturn: {
     slug: "info-returns",
-    displayName: "Year-end Information Returns (T4/T4A/T5)",
+    displayName: "Information Returns",
     shortName: "Info Returns",
-    filingTypes: ["T4", "T4A", "T5"],
+    filingTypes: ["T4", "T4A", "T5", "T3Slips"],
     prismaModel: "infoReturnProcessing",
     allowsClientInteraction: true,
     interactionType: "InfoReturn",

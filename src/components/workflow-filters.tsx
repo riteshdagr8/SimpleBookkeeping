@@ -101,11 +101,11 @@ export function WorkflowFilters({ clients, statuses, slug }: Props) {
         <div>
           <label className="block text-xs font-medium text-fg-muted">Status</label>
           <select
-            defaultValue={params.get("status") ?? ""}
+            defaultValue={params.get("status") ?? "Pending"}
             onChange={(e) => update("status", e.target.value)}
             className="mt-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-fg"
           >
-            <option value="">All</option>
+            <option value="all">All</option>
             {statuses.map((s) => (
               <option key={s} value={s}>{s}</option>
             ))}

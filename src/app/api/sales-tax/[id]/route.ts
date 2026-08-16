@@ -1,2 +1,2 @@
 import { buildWorkflowPutHandler } from "@/app/api/workflow-route-helpers";
-export const PUT = buildWorkflowPutHandler("T2");
+export const PUT = buildWorkflowPutHandler("SalesTax");
