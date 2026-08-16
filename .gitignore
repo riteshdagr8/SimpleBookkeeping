@@ -50,3 +50,6 @@ VERIFICATION_REPORT.md
 code-review*.md
 gen2.json
 zod.json
+
+# Office lock files
+~$*
