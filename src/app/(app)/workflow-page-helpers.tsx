@@ -41,7 +41,7 @@ function filingTypeLabel(t: string): string {
  */
 export async function buildWorkflowListProps(
   type: WorkflowType,
-  searchParams: { clientId?: string; from?: string; to?: string; status?: string }
+  searchParams: { clientId?: string; province?: string; from?: string; to?: string; status?: string }
 ) {
   const user = await requireUser();
   const config = getConfigByType(type);
@@ -55,6 +55,7 @@ export async function buildWorkflowListProps(
       : searchParams.status ?? "Pending";
   const filters = {
     clientId: searchParams.clientId,
+    province: searchParams.province || undefined,
     from: searchParams.from ? new Date(searchParams.from) : undefined,
     to: searchParams.to ? new Date(searchParams.to) : undefined,
     status: statusFilter,
@@ -65,13 +66,22 @@ export async function buildWorkflowListProps(
   const clients = await prisma.client.findMany({
     where: { tenantId: user.tenantId, active: true },
     orderBy: [{ fileNumber: "asc" }],
-    select: { id: true, fileNumber: true, legalName: true },
+    select: { id: true, fileNumber: true, legalName: true, incorporationJurisdiction: true },
   });
 
   // Build the status list for the filter (initial + all statusByStep entries).
   const allStatuses = Array.from(new Set([config.initialStatus, ...config.statusByStep]));
 
-  return { user, config, rows, clients, allStatuses };
+  // Distinct provinces/territories among active clients — used for the Province
+  // filter on the Provincial AR page.
+  const provinces =
+    type === "ProvincialAR"
+      ? Array.from(
+          new Set(clients.map((c) => c.incorporationJurisdiction).filter((j): j is string => !!j))
+        ).sort()
+      : [];
+
+  return { user, config, rows, clients, allStatuses, provinces };
 }
 
 function formatUTC(d: Date | null, withYear = true): string {
@@ -89,6 +99,7 @@ export function WorkflowListView({
   rows,
   clients,
   allStatuses,
+  provinces,
 }: Awaited<ReturnType<typeof buildWorkflowListProps>>) {
   return (
     <div className="space-y-4">
@@ -108,7 +119,7 @@ export function WorkflowListView({
       </div>
 
       <div className="rounded-lg border border-border bg-surface p-4">
-        <WorkflowFilters clients={clients} statuses={allStatuses} slug={config.slug} />
+        <WorkflowFilters clients={clients} statuses={allStatuses} slug={config.slug} provinces={provinces} />
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border bg-surface">

@@ -187,6 +187,7 @@ export async function updateWorkflow(
  */
 export interface ListFilters {
   clientId?: string;
+  province?: string;
   from?: Date;
   to?: Date;
   status?: string;
@@ -225,7 +226,12 @@ export async function listWorkflows(
   const obligations = await prisma.filingObligation.findMany({
     where: {
       filingType: { in: config.filingTypes },
-      client: { tenantId, active: true, ...(filters.clientId ? { id: filters.clientId } : {}) },
+      client: {
+        tenantId,
+        active: true,
+        ...(filters.clientId ? { id: filters.clientId } : {}),
+        ...(filters.province ? { incorporationJurisdiction: filters.province } : {}),
+      },
     },
     select: {
       id: true,

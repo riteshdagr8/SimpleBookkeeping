@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
+import { JURISDICTIONS } from "@/lib/jurisdictions";
 
 interface ClientOption {
   id: string;
@@ -15,6 +16,8 @@ interface Props {
   statuses: string[];
   /** Slug for the route, used to build the page link. */
   slug: string;
+  /** Distinct provinces/territories to filter by (e.g. Provincial AR page). */
+  provinces?: string[];
 }
 
 function toIsoDate(d: Date): string {
@@ -38,7 +41,11 @@ function presetRange(preset: "this" | "last3" | "next" | "next3"): { from: strin
   return { from: toIsoDate(new Date(Date.UTC(y, m - 2, 1))), to: toIsoDate(new Date(Date.UTC(y, m + 1, 0))) };
 }
 
-export function WorkflowFilters({ clients, statuses, slug }: Props) {
+function provinceLabel(code: string): string {
+  return JURISDICTIONS.find((j) => j.code === code)?.label ?? code;
+}
+
+export function WorkflowFilters({ clients, statuses, slug, provinces }: Props) {
   const router = useRouter();
   const params = useSearchParams();
   const [pending, startTransition] = useTransition();
@@ -64,6 +71,22 @@ export function WorkflowFilters({ clients, statuses, slug }: Props) {
   return (
     <div className={`space-y-3 ${pending ? "opacity-60" : ""}`}>
       <div className="flex flex-wrap items-end gap-3">
+        {provinces && provinces.length > 0 && (
+          <div>
+            <label className="block text-xs font-medium text-fg-muted">Province</label>
+            <select
+              key={params.get("province") ?? "all"}
+              defaultValue={params.get("province") ?? "all"}
+              onChange={(e) => update("province", e.target.value === "all" ? "" : e.target.value)}
+              className="mt-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-fg"
+            >
+              <option value="all">All</option>
+              {provinces.map((p) => (
+                <option key={p} value={p}>{provinceLabel(p)}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div>
           <label className="block text-xs font-medium text-fg-muted">Client</label>
           <select

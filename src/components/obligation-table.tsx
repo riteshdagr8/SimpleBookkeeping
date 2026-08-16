@@ -83,7 +83,11 @@ export function ObligationTable({ clientId, rows }: { clientId: string; rows: Ob
   const [navigating, setNavigating] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<string>("filingDue");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [filter, setFilter] = useState<"All" | "PayrollProcessing" | "PayrollRemittance">("All");
+  const [filter, setFilter] = useState<string>("All");
+  const typeOptions = useMemo(() => {
+    const set = new Set(rows.map((r) => r.filingType));
+    return [...set].sort((a, b) => typeLabel(a).localeCompare(typeLabel(b)));
+  }, [rows]);
   const filteredRows = useMemo(() => filter === "All" ? rows : rows.filter((r) => r.filingType === filter), [rows, filter]);
 
   const sorted = useMemo(() => {
@@ -121,10 +125,18 @@ export function ObligationTable({ clientId, rows }: { clientId: string; rows: Ob
 
   return (
     <div className="space-y-2">
-      <div className="inline-flex rounded-md border border-border bg-surface p-0.5" role="group" aria-label="Obligation type filter">
-        {([["All", "All"], ["PayrollProcessing", "Payroll Processing"], ["PayrollRemittance", "Payroll Remittances"]] as const).map(([value, label]) => (
-          <button key={value} type="button" onClick={() => setFilter(value)} className={`px-3 py-1 text-xs rounded ${filter === value ? "bg-primary text-white" : "text-fg-muted hover:text-fg"}`}>{label}</button>
-        ))}
+      <div className="flex items-center gap-2">
+        <label className="text-xs font-medium text-fg-muted">Filing type</label>
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className="rounded-md border border-border bg-surface px-2 py-1 text-sm text-fg"
+        >
+          <option value="All">All</option>
+          {typeOptions.map((t) => (
+            <option key={t} value={t}>{typeLabel(t)}</option>
+          ))}
+        </select>
       </div>
       <div className="overflow-hidden rounded-lg border border-border bg-surface">
       <table className="min-w-full text-sm">
