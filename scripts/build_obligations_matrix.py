@@ -1,17 +1,18 @@
-"""Build obligations_matrix.xlsx — how the app generates obligations by client fields.
+"""Build obligations_matrix.xlsx — how the app generates obligations by entity/jurisdiction.
 
-Source of truth: src/lib/services/obligations.ts (generateObligationsForClient)
-and src/lib/compliance-rules.ts (as of 2026-08-14, commit 1e0ccfe).
+Source of truth: src/lib/obligation-matrix.ts, src/lib/services/obligations.ts
+(generateObligationsForClient) and src/lib/compliance-rules.ts (as of 2026-08-16).
 """
+import os
 from openpyxl import Workbook
 from openpyxl.comments import Comment
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-OUT = "obligations_matrix.xlsx"
+OUT = os.environ.get("OBLIGATIONS_MATRIX_OUT", "obligations_matrix.xlsx")
 
 FONT = "Arial"
-HDR_FILL = PatternFill("solid", fgColor="1F4E79")   # dark blue
+HDR_FILL = PatternFill("solid", fgColor="1F4E79")
 HDR_FONT = Font(name=FONT, bold=True, color="FFFFFF", size=11)
 BODY_FONT = Font(name=FONT, size=10)
 MUTED_FONT = Font(name=FONT, size=10, color="7F7F7F")
@@ -19,8 +20,8 @@ BOLD_FONT = Font(name=FONT, bold=True, size=10)
 WRAP = Alignment(wrap_text=True, vertical="top")
 THIN = Side(style="thin", color="C9C9C9")
 BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
-ZERO_FILL = PatternFill("solid", fgColor="FDE9E9")    # light red: produces 0 rows
-ALT_FILL = PatternFill("solid", fgColor="EAF1F8")     # light blue for grouping
+ZERO_FILL = PatternFill("solid", fgColor="FDE9E9")
+
 
 def style_header(ws, ncols, row=1):
     for c in range(1, ncols + 1):
@@ -29,6 +30,7 @@ def style_header(ws, ncols, row=1):
         cell.fill = HDR_FILL
         cell.alignment = Alignment(wrap_text=True, vertical="center", horizontal="left")
         cell.border = BORDER
+
 
 def write_table(ws, headers, rows, widths, start_row=1):
     for j, h in enumerate(headers, 1):
@@ -44,92 +46,132 @@ def write_table(ws, headers, rows, widths, start_row=1):
         ws.column_dimensions[get_column_letter(j)].width = w
     return start_row + len(rows)
 
+
 def note(ws, row, text):
     cell = ws.cell(row=row, column=1, value=text)
     cell.font = MUTED_FONT
     cell.alignment = WRAP
     return row + 1
 
+
 wb = Workbook()
 
 # ---------------- Sheet 1: Overview ----------------
 ws = wb.active
 ws.title = "Overview"
-ws["A1"] = "SimpleBookkeeping — How obligations are generated"
+ws["A1"] = "SimpleBookkeeping — How obligations are generated (multi-entity & jurisdiction)"
 ws["A1"].font = Font(name=FONT, bold=True, size=15, color="1F4E79")
-ws["A2"] = "Source: src/lib/services/obligations.ts  +  src/lib/compliance-rules.ts  (2026-08-14)"
+ws["A2"] = "Source: src/lib/obligation-matrix.ts  +  src/lib/services/obligations.ts  +  src/lib/compliance-rules.ts  (2026-08-16)"
 ws["A2"].font = MUTED_FONT
 
 r = 4
-ws.cell(row=r, column=1, value="Rule that applies to every obligation type:").font = BOLD_FONT
+ws.cell(row=r, column=1, value="Rules that apply to every obligation type:").font = BOLD_FONT
 r += 1
 for line in [
-    "1. The client's historical review must be marked complete (reviewComplete = true), or NO obligations are generated.",
-    "2. Every row is gated on its due date (or its period) falling inside the rolling 12-month window:",
-    "      windowStart = 1st of the current month;  windowEnd = windowStart + 12 months.",
-    "3. Re-generating is idempotent: a row is only inserted if an identical auto-generated row (type + period + due) does not already exist.",
-    "4. Jurisdiction changes re-sync: OntarioAnnualReturn rows are deleted when jurisdiction is not Ontario; FederalAnnualReturn when not Federal.",
+    "1. The client's historical review must be marked complete, or NO obligations are generated.",
+    "2. Every row is gated on its due date (or its period) falling inside the rolling 12-month window (start of the current month).",
+    "3. Re-generation is idempotent (dedup by type + period + due) and purges auto-generated, Pending, future rows whose filing type is no longer valid for the entity/jurisdiction. Historical and completed rows are NEVER deleted.",
+    "4. Editing a client's entity type or jurisdiction asks for confirmation before purging invalid future-pending rows.",
+    "5. Entity types: Corporation, Self-Employed, Trust, Individual, Partnership. Jurisdictions: Federal + 13 provinces/territories (2-letter codes).",
 ]:
     ws.cell(row=r, column=1, value=line).font = BODY_FONT
     r += 1
 
 r += 1
-hdr = ["Obligation type", "Trigger (client fields)", "Rows", "Period", "Filing due", "Payment due"]
+hdr = ["Category", "Entity / jurisdiction trigger", "Filing type(s)", "Filing due", "Payment due"]
 rows = [
-    ["T2", "Always (every client, once review is complete)", "0-1", "prior FYE -> FYE", "FYE + 6 months", "FYE + 2 months; +3 if threeMonthEligible"],
-    ["HST", "hstApplicable = ON  AND  hstFrequency set", "see HST sheet", "see HST sheet", "see HST sheet", "= filing due"],
-    ["OntarioAnnualReturn", "incorporationJurisdiction = Ontario (or empty)", "0-1", "prior FYE -> FYE", "FYE + 6 months", "-"],
-    ["FederalAnnualReturn", "incorporationJurisdiction = Federal  AND  incorporationDate set", "0-1", "due - 60 days -> due", "incorporation anniversary + 60 days", "-"],
-    ["T4 / T4A / T5", "Always (emitted together as 3 rows)", "0 or 3", "Jan 1 -> Dec 31 of FYE year", "Feb 28 of FYE year + 1", "-"],
-    ["PayrollRemittance", "payrollApplicable = ON  AND  remitterType set", "see Payroll sheet", "see Payroll sheet", "see Payroll sheet", "= filing due"],
-    ["PayrollProcessing", "payrollApplicable = ON  AND  payrollFrequency set", "see Payroll sheet", "see Payroll sheet", "= period end", "= period end"],
+    ["Income tax", "Corporation", "T2", "FYE + 6 mo", "FYE + 2 mo (3 if threeMonthEligible)"],
+    ["Income tax", "Self-Employed", "T1", "Jun 15 (year after FYE)", "Apr 30 (year after FYE)"],
+    ["Income tax", "Individual", "T1", "Apr 30 (year after FYE)", "Apr 30 (year after FYE)"],
+    ["Income tax", "Partnership", "T5013", "Mar 31 (year after FYE)", "N/A"],
+    ["Income tax", "Trust", "T3", "FYE + 90 d", "FYE + 90 d"],
+    ["Sales tax", "Harmonized (ON, NB, NS, NL, PE)", "HST", "by frequency (see Sales Tax sheet)", "= filing due"],
+    ["Sales tax", "Non-PST (AB, NT, NU, YT)", "GST", "by frequency", "= filing due"],
+    ["Sales tax", "Quebec", "GST/QST", "by frequency", "= filing due"],
+    ["Sales tax", "BC / SK", "GST + PST", "by frequency", "= filing due"],
+    ["Sales tax", "Manitoba", "GST + RST", "by frequency", "= filing due"],
+    ["Annual return", "Federal jurisdiction + incorporation date", "FederalAnnualReturn", "incorporation anniversary + 60 d", "-"],
+    ["Annual return", "Any province/territory (Corporation)", "ProvincialAnnualReturn", "by jurisdiction (see Annual Returns sheet)", "-"],
+    ["Payroll", "payrollApplicable + remitterType", "PayrollRemittance", "Monthly: 15th of following month; Quarterly: 15th after quarter-end", "= filing due"],
+    ["Payroll", "payrollApplicable + payrollFrequency", "PayrollProcessing", "= payroll period end", "= period end"],
+    ["Info returns", "Corporation", "T4, T4A, T5", "last day of Feb (FYE year + 1)", "-"],
+    ["Info returns", "Self-Employed / Individual (if payrollApplicable)", "T4, T4A", "last day of Feb (FYE year + 1)", "-"],
+    ["Info returns", "Partnership (if payrollApplicable)", "T4, T4A, T5", "last day of Feb (FYE year + 1)", "-"],
+    ["Info returns", "Trust", "T3Slips", "FYE + 90 d", "-"],
 ]
-r = write_table(ws, hdr, rows, [22, 34, 12, 26, 30, 30], start_row=r)
+r = write_table(ws, hdr, rows, [16, 34, 26, 34, 30], start_row=r)
 r += 1
-r = note(ws, r, "Period/due columns reference the definitions below. Dates are raw calendar dates — no weekend/holiday adjustment (deferred feature).")
+r = note(ws, r, "Sales tax is gated on hstApplicable=ON + hstFrequency; jurisdiction selects which filings. Annual returns are suppressed for Self-Employed/Trust/Individual/Partnership. Sales tax, payroll, and info returns for Federal jurisdiction use the HST / standard defaults.")
 
-# ---------------- Sheet 2: HST ----------------
-ws = wb.create_sheet("HST")
-ws["A1"] = "HST obligations by frequency"
+# ---------------- Sheet 2: Income Tax ----------------
+ws = wb.create_sheet("Income Tax")
+ws["A1"] = "Income taxes by entity type (exactly one per client)"
 ws["A1"].font = Font(name=FONT, bold=True, size=14, color="1F4E79")
-hdr = ["hstFrequency", "Rows", "Anchor", "Period", "Filing due / payment due"]
+hdr = ["Entity type", "Filing type", "Period", "Filing due", "Payment due"]
 rows = [
-    ["Monthly", 12, "rolling window (NOT gstYearEnd)", "1st -> last day of each month", "last day of the month following the period"],
-    ["Quarterly", "up to 8", "gstYearEnd month if set, else calendar quarters", "3-month blocks ending at quarter-end", "last day of the month after the quarter end"],
-    ["Annual", "up to 2", "gstYearEnd month if set, else FYE", "prior year-end -> year-end", "year-end + 3 months"],
-    ["SelfEmployed", "0-1", "FYE must be Dec 31 (else 0 rows)", "FYE -> next FYE", "filing Jun 15; payment Apr 30 (year after FYE)"],
+    ["Corporation", "T2", "prior FYE -> FYE", "FYE + 6 months", "FYE + 2 months (3 if threeMonthEligible)"],
+    ["Self-Employed", "T1", "Jan 1 -> Dec 31 (FYE year)", "Jun 15 of following year", "Apr 30 of following year"],
+    ["Individual", "T1", "Jan 1 -> Dec 31 (FYE year)", "Apr 30 of following year", "Apr 30 of following year"],
+    ["Partnership", "T5013", "Jan 1 -> Dec 31 (FYE year)", "Mar 31 of following year", "N/A"],
+    ["Trust", "T3", "prior FYE -> FYE", "FYE + 90 days", "FYE + 90 days"],
 ]
-r = write_table(ws, hdr, rows, [16, 10, 34, 34, 42], start_row=3)
-# Mark the zero-producing config
-ws.cell(row=6, column=2).fill = ZERO_FILL
-ws.cell(row=6, column=2).comment = Comment("SelfEmployed with a non-Dec-31 FYE produces 0 rows", "SimpleBookkeeping")
-r = ws.max_row + 2
-r = note(ws, r, "Monthly HST is anchored to the rolling window (not gstYearEnd) — the H3 fix. gstYearEnd only affects Quarterly/Annual/SelfEmployed anchoring.")
+r = write_table(ws, hdr, rows, [18, 12, 28, 30, 34], start_row=3)
+r += 1
+r = note(ws, r, "Legacy clients with no entity type are treated as Corporation (T2).")
 
-# ---------------- Sheet 3: Payroll ----------------
+# ---------------- Sheet 3: Sales Tax ----------------
+ws = wb.create_sheet("Sales Tax")
+ws["A1"] = "Sales tax by jurisdiction and frequency"
+ws["A1"].font = Font(name=FONT, bold=True, size=14, color="1F4E79")
+hdr = ["Jurisdiction", "Filings", "Frequency", "Filing / payment due"]
+rows = [
+    ["ON, NB, NS, NL, PE", "HST", "Monthly", "last day of the following month"],
+    ["ON, NB, NS, NL, PE", "HST", "Quarterly", "last day of the month after quarter-end"],
+    ["ON, NB, NS, NL, PE", "HST", "Annual (Corporation)", "FYE + 3 months"],
+    ["AB, NT, NU, YT", "GST", "any", "same due rules as above"],
+    ["QC", "GST/QST (combined)", "any", "same due rules as above"],
+    ["BC, SK", "GST + PST", "any", "same due rules as above"],
+    ["MB", "GST + RST", "any", "same due rules as above"],
+    ["Self-Employed / Individual with Dec-31 FYE", "any", "Annual", "payment Apr 30; filing Jun 15 of following year"],
+]
+r = write_table(ws, hdr, rows, [34, 24, 24, 42], start_row=3)
+r += 1
+r = note(ws, r, "Monthly is anchored to the rolling window; Quarterly/Annual are anchored to gstYearEnd (or calendar quarters) and the FYE year.")
+
+# ---------------- Sheet 4: Annual Returns ----------------
+ws = wb.create_sheet("Annual Returns")
+ws["A1"] = "Corporate annual returns (only for Corporation entities)"
+ws["A1"].font = Font(name=FONT, bold=True, size=14, color="1F4E79")
+hdr = ["Jurisdiction", "Filing type", "Deadline"]
+rows = [
+    ["Federal", "FederalAnnualReturn", "incorporation anniversary + 60 days (period: due-60d -> due)"],
+    ["ON, QC", "ProvincialAnnualReturn", "FYE + 6 months (period: prior FYE -> FYE)"],
+    ["BC, NS, NL", "ProvincialAnnualReturn", "incorporation anniversary + 60 days"],
+    ["AB, SK, MB, NB, YT, NT, NU", "ProvincialAnnualReturn", "last day of the month following the anniversary month"],
+    ["PE", "ProvincialAnnualReturn", "last day of the anniversary month"],
+]
+r = write_table(ws, hdr, rows, [34, 24, 56], start_row=3)
+r += 1
+r = note(ws, r, "Anniversary-based provinces require an incorporation date. Suppressed entirely for Self-Employed, Trust, Individual, and Partnership entities.")
+
+# ---------------- Sheet 5: Payroll ----------------
 ws = wb.create_sheet("Payroll")
-ws["A1"] = "Payroll obligations"
+ws["A1"] = "Payroll"
 ws["A1"].font = Font(name=FONT, bold=True, size=14, color="1F4E79")
 
 ws["A3"] = "PayrollRemittance — by remitterType"
 ws["A3"].font = BOLD_FONT
-hdr = ["remitterType", "Rows", "Period", "Filing due / payment due"]
+hdr = ["remitterType", "Rows", "Period", "Filing / payment due"]
 rows = [
-    ["Regular", 12, "monthly, 1st -> last day", "15th of the month after the period"],
+    ["Monthly", 12, "monthly, 1st -> last day", "15th of the month after the period"],
     ["Quarterly", 4, "calendar quarters", "15th of the month after the quarter end"],
-    ["Accelerated1", 0, "-", "-"],
-    ["Accelerated2", 0, "-", "-"],
 ]
 r = write_table(ws, hdr, rows, [16, 8, 30, 34], start_row=4)
-ws.cell(row=8, column=2).fill = ZERO_FILL
-ws.cell(row=9, column=2).fill = ZERO_FILL
-ws.cell(row=8, column=2).comment = Comment("Accelerated remitter rule math not implemented -> 0 rows (known gap)", "SimpleBookkeeping")
-ws.cell(row=9, column=2).comment = Comment("Accelerated remitter rule math not implemented -> 0 rows (known gap)", "SimpleBookkeeping")
 
 r = ws.max_row + 3
 ws.cell(row=r, column=1, value="PayrollProcessing — by payrollFrequency").font = BOLD_FONT
 r += 1
-hdr = ["payrollFrequency", "Rows", "Period", "Filing due / payment due"]
+hdr = ["payrollFrequency", "Rows", "Period", "Filing / payment due"]
 rows = [
     ["Weekly", 52, "7-day runs", "= period end"],
     ["Bi-Weekly", 26, "14-day runs", "= period end"],
@@ -138,32 +180,38 @@ rows = [
 ]
 write_table(ws, hdr, rows, [16, 8, 30, 22], start_row=r)
 
-for j, w in enumerate([16, 8, 30, 34], 1):
-    ws.column_dimensions[get_column_letter(j)].width = w
+# ---------------- Sheet 6: Info Returns ----------------
+ws = wb.create_sheet("Info Returns")
+ws["A1"] = "Information returns by entity type"
+ws["A1"].font = Font(name=FONT, bold=True, size=14, color="1F4E79")
+hdr = ["Entity type", "Filings", "Filing due"]
+rows = [
+    ["Corporation", "T4, T4A, T5", "last day of February (FYE year + 1)"],
+    ["Self-Employed (if payrollApplicable)", "T4, T4A", "last day of February (FYE year + 1)"],
+    ["Individual (if payrollApplicable)", "T4, T4A", "last day of February (FYE year + 1)"],
+    ["Partnership (if payrollApplicable)", "T4, T4A, T5", "last day of February (FYE year + 1)"],
+    ["Trust", "T3Slips", "FYE + 90 days"],
+]
+r = write_table(ws, hdr, rows, [34, 22, 40], start_row=3)
 
-# ---------------- Sheet 4: Examples ----------------
+# ---------------- Sheet 7: Examples ----------------
 ws = wb.create_sheet("Examples")
 ws["A1"] = "Worked examples (illustrative) — what a generated schedule looks like"
 ws["A1"].font = Font(name=FONT, bold=True, size=14, color="1F4E79")
-
 hdr = ["Client config", "Expected obligations (rolling window)"]
 examples = [
-    ["Review complete; jurisdiction Ontario; FYE Dec 31",
-     "T2, OntarioAnnualReturn, T4, T4A, T5 — plus HST/payroll if enabled"],
-    ["+ hstApplicable, hstFrequency=Monthly",
-     "HST x 12 (rolling months) added to the above"],
-    ["+ payrollApplicable, remitterType=Regular, payrollFrequency=Weekly",
-     "PayrollRemittance x 12 + PayrollProcessing x 52 added to the above"],
-    ["jurisdiction Federal + incorporationDate set",
-     "OntarioAnnualReturn dropped; FederalAnnualReturn added"],
-    ["hstFrequency=SelfEmployed but FYE not Dec 31",
-     "No HST rows at all (warning shown on schedule page)"],
-    ["remitterType=Accelerated1 or Accelerated2",
-     "No PayrollRemittance rows (rule not implemented)"],
+    ["Corporation, Ontario, sales tax Monthly", "T2, HST x 12, ProvincialAnnualReturn, T4, T4A, T5"],
+    ["Corporation, BC, sales tax Monthly", "T2, GST x 12, PST x 12, ProvincialAnnualReturn, T4, T4A, T5"],
+    ["Corporation, Quebec, sales tax Quarterly", "T2, GST/QST x 4, ProvincialAnnualReturn, T4, T4A, T5"],
+    ["Corporation, Federal, no sales tax", "T2, FederalAnnualReturn, T4, T4A, T5"],
+    ["Trust, Ontario", "T3, T3Slips (no T2 / annual returns / T4-T5)"],
+    ["Self-Employed, Ontario, sales tax Annual", "T1 (payment Apr 30, filing Jun 15), HST"],
+    ["Individual, Ontario", "T1 (filing & payment Apr 30)"],
+    ["Partnership, Ontario, payroll", "T5013, PayrollRemittance x 12, PayrollProcessing x 12, T4, T4A, T5"],
 ]
-r = write_table(ws, hdr, examples, [42, 70], start_row=3)
+r = write_table(ws, hdr, examples, [40, 70], start_row=3)
 r += 1
-r = note(ws, r, "Totals are approximate: a row is only included when its due date/period lands inside the current rolling 12-month window, so exact counts vary with today's date.")
+r = note(ws, r, "A row is only included when its due date/period lands inside the current rolling 12-month window, so exact counts vary with today's date.")
 
 wb.save(OUT)
 print(f"saved {OUT}")

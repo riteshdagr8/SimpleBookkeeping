@@ -3,7 +3,7 @@
 Self-hosted corporate client compliance tracker for a small Canadian
 accounting firm. Replaces the existing Excel workbooks for managing
 client onboarding, historical filings, and the recurring compliance
-schedule (T2, GST/HST, payroll, annual returns, T4/T4A/T5).
+schedule (income taxes, sales tax, payroll, annual returns, info returns).
 
 MVP1 is single-tenant and self-hosted. The data model and access
 patterns are already tenant-scoped, so a SaaS version is a matter of
@@ -118,16 +118,27 @@ default tenant and demo users.
   rows are highlighted.
 - **Monitoring** (`/monitoring`) — overdue items, items due in the next
   7 days, and items waiting on clients.
+- **Income Taxes** (`/income-taxes`) — T2 (corporate), T1 (personal /
+  self-employed), T5013 (partnership), and T3 (trust) returns.
+- **Sales Tax** (`/sales-tax`) — GST/HST, GST, GST/QST, and GST + PST/RST
+  obligations selected by jurisdiction.
+- **Payroll** (`/payroll`) — payroll remittance filings.
+- **Federal AR** (`/federal-ar`) — federal annual returns.
+- **Provincial AR** (`/provincial-ar`) — provincial/territorial registry
+  annual returns for all 13 regions.
+- **Information Returns** (`/info-returns`) — T4/T4A/T5 slips and T3 slips.
 - **Clients** (`/clients`) — list, create, edit. Each client has:
-  - Master data (file #, legal name, BN, FYE, incorporation date, HST
-    and payroll applicability, etc.)
+  - Master data (file #, legal name, entity type, jurisdiction, BN, FYE,
+    incorporation date, HST and payroll applicability, etc.)
   - Folder checklist (CRA, HST, Payroll, …) with persistent state
   - Historical review (3 years × 6 filing types) — must be marked
     complete before the schedule unlocks
   - Encrypted QuickBooks Desktop password with **Reveal**/**Hide**/**Copy**
     buttons. Plaintext is never written to disk; every reveal is audited.
   - Compliance schedule (auto-generated from master data using the
-    Canadian compliance rules in `src/lib/compliance-rules.ts`)
+    Canadian compliance rules in `src/lib/compliance-rules.ts`). Changing
+    a client's entity type or jurisdiction prompts for confirmation before
+    purging invalid future-pending schedule entries.
 - **Users** (`/admin/users`, Admin only) — create, deactivate, reset
   passwords.
 - **Theme** (`/settings/theme`) — pick from six palettes
