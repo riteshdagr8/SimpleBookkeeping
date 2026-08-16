@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 /** Filing type → Prisma model name for workflow status lookup. */
 export const FILING_TYPE_TO_MODEL: Record<string, string> = {
   PayrollRemittance: "payrollProcessing",
+  PayrollProcessing: "payrollProcessing",
   HST: "gSTHSTProcessing",
   GSTQST: "gSTHSTProcessing",
   GST: "gSTHSTProcessing",

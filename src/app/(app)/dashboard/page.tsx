@@ -17,6 +17,7 @@ interface SP {
 /** Filing type → Prisma model name for workflow status lookup */
 const FILING_TYPE_TO_MODEL: Record<string, string> = {
   PayrollRemittance: "payrollProcessing",
+  PayrollProcessing: "payrollProcessing",
   HST: "gSTHSTProcessing",
   GSTQST: "gSTHSTProcessing",
   GST: "gSTHSTProcessing",

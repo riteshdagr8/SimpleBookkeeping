@@ -11,7 +11,7 @@ export const WORKFLOW_CONFIGS: Record<string, WorkflowConfig> = {
     slug: "payroll",
     displayName: "Payroll Processing",
     shortName: "Payroll",
-    filingTypes: ["PayrollRemittance"],
+    filingTypes: ["PayrollRemittance", "PayrollProcessing"],
     prismaModel: "payrollProcessing",
     allowsClientInteraction: true,
     interactionType: "Payroll",

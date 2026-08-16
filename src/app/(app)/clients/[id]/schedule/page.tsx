@@ -18,6 +18,7 @@ const WORKFLOW_FILING_TYPES = new Set([
 /** Filing type → Prisma model name */
 const FILING_TYPE_TO_MODEL: Record<string, string> = {
   PayrollRemittance: "payrollProcessing",
+  PayrollProcessing: "payrollProcessing",
   HST: "gSTHSTProcessing",
   GSTQST: "gSTHSTProcessing",
   GST: "gSTHSTProcessing",

@@ -22,6 +22,8 @@ const FILING_TYPE_LABELS: Record<string, string> = {
   RST: "RST Return",
   FederalAnnualReturn: "Federal Annual Return",
   ProvincialAnnualReturn: "Provincial Annual Return",
+  PayrollRemittance: "Payroll Remittance",
+  PayrollProcessing: "Payroll Processing",
   T4: "T4",
   T4A: "T4A",
   T5: "T5",
