@@ -96,7 +96,7 @@ export function ObligationTable({
       }
       return cmp * dir;
     });
-  }, [filteredRows, sortBy, sortDir]);
+  }, [filteredRows, sortBy, sortDir, clientJurisdiction]);
 
   function toggleSort(field: string) {
     if (sortBy === field) {

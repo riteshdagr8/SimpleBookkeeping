@@ -471,7 +471,6 @@ export function ClientForm({
         cancelLabel="Cancel"
         tone="danger"
         onConfirm={() => {
-          const count = pendingConfirm?.count ?? 0;
           setPendingConfirm(null);
           void save(true);
         }}
