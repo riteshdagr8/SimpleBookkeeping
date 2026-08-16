@@ -434,6 +434,18 @@ export async function generateObligationsForClient(
     );
   }
 
+  // Provincial AR: anniversary-based provinces need an incorporation date to
+  // compute the filing deadline. If one is expected but the date is missing,
+  // surface a warning instead of silently skipping the obligation.
+  const hasProvincialAr = rows.some((r) => r.filingType === "ProvincialAnnualReturn");
+  const needsIncDate =
+    jur && jur !== "Federal" && jur !== "ON" && jur !== "QC" && !client.incorporationDate;
+  if (arTypes.includes("ProvincialAnnualReturn") && !hasProvincialAr && needsIncDate) {
+    warnings.push(
+      `Provincial Annual Return for ${jur} is due from the incorporation anniversary, which requires an incorporation date. Add the incorporation date and regenerate the schedule.`
+    );
+  }
+
   return { count: rows.length, warnings };
 }
 
