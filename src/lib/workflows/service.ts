@@ -210,6 +210,7 @@ export interface ListedWorkflow {
     id: string;
     fileNumber: string | null;
     legalName: string;
+    incorporationJurisdiction: string | null;
   };
   updatedAt: Date;
 }
@@ -240,7 +241,7 @@ export async function listWorkflows(
       periodStart: true,
       periodEnd: true,
       clientId: true,
-      client: { select: { id: true, fileNumber: true, legalName: true, tenantId: true } },
+      client: { select: { id: true, fileNumber: true, legalName: true, incorporationJurisdiction: true, tenantId: true } },
     },
   });
 
@@ -292,6 +293,7 @@ export async function listWorkflows(
         id: o.client.id,
         fileNumber: o.client.fileNumber,
         legalName: o.client.legalName,
+        incorporationJurisdiction: o.client.incorporationJurisdiction,
       },
       updatedAt: row ? (row.updatedAt as Date) : new Date(0),
     });

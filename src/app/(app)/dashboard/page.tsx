@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { listObligationsForTenant } from "@/lib/services/obligations";
 import { DashboardFilters } from "@/components/dashboard-filters";
 import { workflowLinkForObligation } from "@/lib/workflows/route-map";
+import { filingTypeLabel } from "@/lib/obligation-matrix";
 
 interface SP {
   from?: string;
@@ -64,28 +65,8 @@ async function getWorkflowStatuses(
   return statusMap;
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  T2: "Corporate Tax Return (T2)",
-  T1: "Personal Tax Return (T1)",
-  T5013: "Partnership Return (T5013)",
-  T3: "Trust Return (T3)",
-  HST: "GST/HST",
-  GST: "GST Return",
-  GSTQST: "GST/QST Return",
-  PST: "PST Return",
-  RST: "RST Return",
-  PayrollRemittance: "Payroll Remittance",
-  PayrollProcessing: "Payroll Processing",
-  ProvincialAnnualReturn: "Provincial Annual Return",
-  FederalAnnualReturn: "Federal Annual Return",
-  T4: "T4",
-  T4A: "T4A",
-  T5: "T5",
-  T3Slips: "T3 Slips & Summary",
-};
-
-function typeLabel(t: string): string {
-  return TYPE_LABELS[t] ?? t;
+function typeLabel(t: string, jurisdiction?: string | null): string {
+  return filingTypeLabel(t, jurisdiction);
 }
 
 function isOverdue(due: Date | null, status: string) {
@@ -112,7 +93,7 @@ function statusLabel(s: string): string {
 }
 
 /** Sort obligations by the given sort key and direction. */
-function sortObligations<T extends { client: { fileNumber: string | null; legalName: string }; filingType: string; periodStart: Date | null; periodEnd: Date | null; filingDueDate: Date | null }>(
+function sortObligations<T extends { client: { fileNumber: string | null; legalName: string; incorporationJurisdiction: string | null }; filingType: string; periodStart: Date | null; periodEnd: Date | null; filingDueDate: Date | null }>(
   items: T[],
   sortBy: string,
   sortDir: string
@@ -123,7 +104,7 @@ function sortObligations<T extends { client: { fileNumber: string | null; legalN
     if (sortBy === "client") {
       cmp = (a.client.fileNumber ?? "").localeCompare(b.client.fileNumber ?? "");
     } else if (sortBy === "type") {
-      cmp = typeLabel(a.filingType).localeCompare(typeLabel(b.filingType));
+      cmp = typeLabel(a.filingType, a.client.incorporationJurisdiction).localeCompare(typeLabel(b.filingType, b.client.incorporationJurisdiction));
     } else if (sortBy === "period") {
       const ap = a.periodStart?.getTime() ?? 0;
       const bp = b.periodStart?.getTime() ?? 0;
@@ -272,7 +253,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   <td className="px-3 py-2 text-fg">
                     {(() => {
                       const href = workflowLinkForObligation(o.filingType, o.id);
-                      if (!href) return typeLabel(o.filingType);
+                      if (!href) return typeLabel(o.filingType, o.client.incorporationJurisdiction);
                       const restoreQs = new URLSearchParams();
                       if (sp.from) restoreQs.set("from", sp.from);
                       if (sp.to) restoreQs.set("to", sp.to);
@@ -282,7 +263,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                       if (restoreQs.toString()) params.set("_dash", restoreQs.toString());
                       return (
                         <Link href={`${href}?${params.toString()}`} className="text-primary hover:underline">
-                          {typeLabel(o.filingType)}
+                          {typeLabel(o.filingType, o.client.incorporationJurisdiction)}
                         </Link>
                       );
                     })()}

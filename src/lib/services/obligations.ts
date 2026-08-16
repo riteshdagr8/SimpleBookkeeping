@@ -63,7 +63,7 @@ export async function listObligationsForTenant(
 ) {
   const clients = await prisma.client.findMany({
     where: { tenantId, active: true },
-    select: { id: true, fileNumber: true, legalName: true },
+    select: { id: true, fileNumber: true, legalName: true, incorporationJurisdiction: true },
   });
   const clientIds = clients.map((c) => c.id);
   if (clientIds.length === 0) return { clients: [], obligations: [] };
@@ -79,7 +79,7 @@ export async function listObligationsForTenant(
   const obligations = await prisma.filingObligation.findMany({
     where,
     orderBy: [{ filingDueDate: "asc" }, { filingType: "asc" }],
-    include: { client: { select: { id: true, fileNumber: true, legalName: true } } },
+    include: { client: { select: { id: true, fileNumber: true, legalName: true, incorporationJurisdiction: true } } },
   });
   return { clients, obligations };
 }

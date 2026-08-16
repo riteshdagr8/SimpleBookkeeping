@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { workflowLinkForObligation } from "@/lib/workflows/route-map";
+import { filingTypeLabel } from "@/lib/obligation-matrix";
 
 export interface ObligationRow {
   id: string;
@@ -28,28 +29,8 @@ const STATUS_BADGE: Record<string, string> = {
   Overdue: "bg-danger/15 text-danger",
 };
 
-const TYPE_LABELS: Record<string, string> = {
-  T2: "Corporate Tax Return (T2)",
-  T1: "Personal Tax Return (T1)",
-  T5013: "Partnership Return (T5013)",
-  T3: "Trust Return (T3)",
-  HST: "GST/HST",
-  GST: "GST Return",
-  GSTQST: "GST/QST Return",
-  PST: "PST Return",
-  RST: "RST Return",
-  PayrollRemittance: "Payroll Remittance",
-  PayrollProcessing: "Payroll Processing",
-  ProvincialAnnualReturn: "Provincial Annual Return",
-  FederalAnnualReturn: "Federal Annual Return",
-  T4: "T4",
-  T4A: "T4A",
-  T5: "T5",
-  T3Slips: "T3 Slips & Summary",
-};
-
-function typeLabel(t: string): string {
-  return TYPE_LABELS[t] ?? t;
+function typeLabel(t: string, jurisdiction?: string | null): string {
+  return filingTypeLabel(t, jurisdiction);
 }
 
 function isOverdue(due: string | null, status: string) {
@@ -79,15 +60,23 @@ function formatUTC(iso: string | null, withYear: boolean): string {
   return new Intl.DateTimeFormat("en-US", opts).format(d);
 }
 
-export function ObligationTable({ clientId, rows }: { clientId: string; rows: ObligationRow[] }) {
+export function ObligationTable({
+  clientId,
+  clientJurisdiction,
+  rows,
+}: {
+  clientId: string;
+  clientJurisdiction?: string | null;
+  rows: ObligationRow[];
+}) {
   const [navigating, setNavigating] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<string>("filingDue");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [filter, setFilter] = useState<string>("All");
   const typeOptions = useMemo(() => {
     const set = new Set(rows.map((r) => r.filingType));
-    return [...set].sort((a, b) => typeLabel(a).localeCompare(typeLabel(b)));
-  }, [rows]);
+    return [...set].sort((a, b) => typeLabel(a, clientJurisdiction).localeCompare(typeLabel(b, clientJurisdiction)));
+  }, [rows, clientJurisdiction]);
   const filteredRows = useMemo(() => filter === "All" ? rows : rows.filter((r) => r.filingType === filter), [rows, filter]);
 
   const sorted = useMemo(() => {
@@ -95,7 +84,7 @@ export function ObligationTable({ clientId, rows }: { clientId: string; rows: Ob
     return [...filteredRows].sort((a, b) => {
       let cmp = 0;
       if (sortBy === "type") {
-        cmp = typeLabel(a.filingType).localeCompare(typeLabel(b.filingType));
+        cmp = typeLabel(a.filingType, clientJurisdiction).localeCompare(typeLabel(b.filingType, clientJurisdiction));
       } else if (sortBy === "period") {
         const ap = a.periodStart ? new Date(a.periodStart).getTime() : 0;
         const bp = b.periodStart ? new Date(b.periodStart).getTime() : 0;
@@ -134,7 +123,7 @@ export function ObligationTable({ clientId, rows }: { clientId: string; rows: Ob
         >
           <option value="All">All</option>
           {typeOptions.map((t) => (
-            <option key={t} value={t}>{typeLabel(t)}</option>
+            <option key={t} value={t}>{typeLabel(t, clientJurisdiction)}</option>
           ))}
         </select>
       </div>
@@ -171,7 +160,7 @@ export function ObligationTable({ clientId, rows }: { clientId: string; rows: Ob
                 <td className="px-3 py-2 font-medium text-fg">
                   {(() => {
                     const href = workflowLinkForObligation(r.filingType, r.id);
-                    if (!href) return typeLabel(r.filingType);
+                    if (!href) return typeLabel(r.filingType, clientJurisdiction);
                     const linkHref = clientId ? `${href}?from=schedule&clientId=${clientId}` : href;
                     return (
                       <Link
@@ -179,7 +168,7 @@ export function ObligationTable({ clientId, rows }: { clientId: string; rows: Ob
                         onClick={() => setNavigating(r.id)}
                         className={`text-primary hover:underline ${navigating === r.id ? "opacity-50 pointer-events-none" : ""}`}
                       >
-                        {navigating === r.id ? "Loading…" : typeLabel(r.filingType)}
+                        {navigating === r.id ? "Loading…" : typeLabel(r.filingType, clientJurisdiction)}
                       </Link>
                     );
                   })()}

@@ -25,6 +25,12 @@ export const JURISDICTIONS = [
 
 export const JURISDICTION_CODES = JURISDICTIONS.map((j) => j.code);
 
+/** Display label for a jurisdiction code (e.g. "NS" → "Nova Scotia"). */
+export function jurisdictionLabel(code: string | null | undefined): string {
+  if (!code) return "";
+  return JURISDICTIONS.find((j) => j.code === code)?.label ?? code;
+}
+
 /** All provincial/territorial codes (everything except Federal). */
 export const PROVINCE_CODES = JURISDICTIONS.filter((j) => j.code !== "Federal").map((j) => j.code);
 

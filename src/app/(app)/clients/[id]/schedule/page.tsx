@@ -129,6 +129,7 @@ export default async function SchedulePage({ params }: { params: Promise<{ id: s
 
       <ObligationTable
         clientId={client.id}
+        clientJurisdiction={client.incorporationJurisdiction}
         rows={(obligations ?? []).map((o) => ({
           id: o.id,
           filingType: o.filingType,

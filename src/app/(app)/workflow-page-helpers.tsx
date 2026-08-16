@@ -9,30 +9,8 @@ import { getActiveInteraction } from "@/lib/workflows/interactions";
 import { WorkflowFilters } from "@/components/workflow-filters";
 import { WorkflowEditor } from "@/components/workflow-editor";
 import type { WorkflowType } from "@/lib/workflows/types";
-
-const FILING_TYPE_LABELS: Record<string, string> = {
-  T2: "Corporate Tax Return (T2)",
-  T1: "Personal Tax Return (T1)",
-  T5013: "Partnership Return (T5013)",
-  T3: "Trust Return (T3)",
-  HST: "GST/HST",
-  GST: "GST Return",
-  GSTQST: "GST/QST Return",
-  PST: "PST Return",
-  RST: "RST Return",
-  FederalAnnualReturn: "Federal Annual Return",
-  ProvincialAnnualReturn: "Provincial Annual Return",
-  PayrollRemittance: "Payroll Remittance",
-  PayrollProcessing: "Payroll Processing",
-  T4: "T4",
-  T4A: "T4A",
-  T5: "T5",
-  T3Slips: "T3 Slips & Summary",
-};
-
-function filingTypeLabel(t: string): string {
-  return FILING_TYPE_LABELS[t] ?? t;
-}
+import { filingTypeLabel } from "@/lib/obligation-matrix";
+import { jurisdictionLabel } from "@/lib/jurisdictions";
 
 /**
  * Build the props for the list page of a given workflow type. Used by each
@@ -152,7 +130,7 @@ export function WorkflowListView({
                     {r.client.legalName}
                   </Link>
                 </td>
-                <td className="px-3 py-2 text-fg">{filingTypeLabel(r.obligation.filingType)}</td>
+                <td className="px-3 py-2 text-fg">{filingTypeLabel(r.obligation.filingType, r.client.incorporationJurisdiction)}</td>
                 <td className="px-3 py-2 text-fg-muted">{formatUTC(r.obligation.filingDueDate)}</td>
                 <td className="px-3 py-2 text-fg">
                   <span className="rounded-full bg-bg-subtle px-2 py-0.5 text-xs">{r.status}</span>
@@ -234,8 +212,10 @@ export async function buildWorkflowDetailProps(
   // the display name and step labels based on the specific filing type.
   const isMultiType = config.filingTypes.length > 1;
   const displayName = isMultiType
-    ? `${config.shortName} — ${filingTypeLabel(obligation.filingType)}`
-    : config.displayName;
+    ? `${config.shortName} — ${filingTypeLabel(obligation.filingType, obligation.client.incorporationJurisdiction)}`
+    : obligation.filingType === "ProvincialAnnualReturn" && obligation.client.incorporationJurisdiction
+      ? `${config.displayName} — ${jurisdictionLabel(obligation.client.incorporationJurisdiction)}`
+      : config.displayName;
 
   if (isMultiType) {
     visibleSteps = visibleSteps.map((s) => ({

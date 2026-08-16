@@ -16,6 +16,7 @@ import {
   NON_PST_REGIONS,
   PROVINCE_CODES,
   SEPARATE_PST_PROVINCES,
+  jurisdictionLabel,
 } from "./jurisdictions";
 
 export const ENTITY_TYPES = [
@@ -110,6 +111,18 @@ export function filingTypesForClient(config: ComplianceConfig): Set<string> {
 
   for (const t of infoReturnFilingTypes(config)) set.add(t);
   return set;
+}
+
+/**
+ * Display label for a filing type, optionally including the province for
+ * provincial annual returns (e.g. "Provincial Annual Return — Nova Scotia").
+ */
+export function filingTypeLabel(filingType: string, jurisdiction?: string | null): string {
+  const base = FILING_TYPE_LABELS[filingType] ?? filingType;
+  if (filingType === "ProvincialAnnualReturn" && jurisdiction) {
+    return `${base} — ${jurisdictionLabel(jurisdiction)}`;
+  }
+  return base;
 }
 
 /** Display labels for every filing type. */
