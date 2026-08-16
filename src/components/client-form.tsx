@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { JURISDICTIONS } from "@/lib/jurisdictions";
+import { ENTITY_TYPES } from "@/lib/obligation-matrix";
 
 export interface ClientFormInitial {
   id?: string;
@@ -14,7 +16,7 @@ export interface ClientFormInitial {
   entityType: string;
   fiscalYearEnd: string; // yyyy-mm-dd (always day 01)
   incorporationDate: string;
-  incorporationJurisdiction: "" | "Federal" | "Ontario";
+  incorporationJurisdiction: "" | (typeof JURISDICTIONS)[number]["code"];
   address: string;
   phone: string;
   primaryEmail: string;
@@ -27,7 +29,7 @@ export interface ClientFormInitial {
   hstFrequency: "" | "Monthly" | "Quarterly" | "Annual" | "SelfEmployed";
   payrollApplicable: boolean;
   payrollFrequency: "" | "Weekly" | "Bi-Weekly" | "Semi-Monthly" | "Monthly" | "NA";
-  remitterType: "" | "Regular" | "Quarterly" | "Accelerated1" | "Accelerated2";
+  remitterType: "" | "Monthly" | "Quarterly";
   qbOnlinePayroll: boolean;
   threeMonthEligible: boolean;
   reviewYears: 3 | 4 | 5 | 6;
@@ -104,6 +106,9 @@ export function ClientForm({
   // (or a failed reveal) never overwrites/clears the stored encrypted value.
   const [qbDirty, setQbDirty] = useState(false);
   const [inactiveConfirm, setInactiveConfirm] = useState(false);
+  // Set when the server reports that this entity/jurisdiction change would
+  // purge future pending obligations; requires explicit confirmation.
+  const [pendingConfirm, setPendingConfirm] = useState<{ count: number } | null>(null);
 
   function handleStatusChange(value: string) {
     if (value === "Inactive" && form.onboardingStatus !== "Inactive") {
@@ -138,7 +143,7 @@ export function ClientForm({
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  function payload() {
+  function payload(confirm = false) {
     return {
       fileNumber: form.fileNumber.trim() || null,
       legalName: form.legalName.trim(),
@@ -169,7 +174,42 @@ export function ClientForm({
       // Omitting it lets resolveQb return undefined ("don't touch"), so a
       // routine save never wipes the stored encrypted QuickBooks password.
       qbPassword: qbDirty ? form.qbPassword || null : undefined,
+      // Confirms the entity/jurisdiction change will purge invalid future
+      // pending obligations (two-step save).
+      confirm,
     };
+  }
+
+  async function save(confirm: boolean) {
+    setLoading(true);
+    try {
+      const url = initial.id ? `/api/clients/${initial.id}` : "/api/clients";
+      const method = initial.id ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload(confirm)),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        client?: { id: string };
+        error?: string;
+        needsConfirmation?: boolean;
+        affectedCount?: number;
+      };
+      if (!res.ok) {
+        throw new Error(data.error ?? "Save failed");
+      }
+      if (data.needsConfirmation) {
+        setPendingConfirm({ count: data.affectedCount ?? 0 });
+        return;
+      }
+      router.push(`/clients/${data.client?.id ?? initial.id}`);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -179,27 +219,7 @@ export function ClientForm({
       setError("Legal name and fiscal year-end are required.");
       return;
     }
-    setLoading(true);
-    try {
-      const url = initial.id ? `/api/clients/${initial.id}` : "/api/clients";
-      const method = initial.id ? "PUT" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload()),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Save failed");
-      }
-      const data = (await res.json()) as { client?: { id: string } };
-      router.push(`/clients/${data.client?.id ?? initial.id}`);
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Save failed");
-    } finally {
-      setLoading(false);
-    }
+    await save(false);
   }
 
   const fyeYear = form.fiscalYearEnd ? form.fiscalYearEnd.slice(0, 4) : String(new Date().getFullYear());
@@ -223,7 +243,7 @@ export function ClientForm({
           label="Entity type"
           value={form.entityType}
           onChange={(v) => set("entityType", v)}
-          options={["", "Corporation", "Individual", "Partnership"]}
+          options={["", ...ENTITY_TYPES]}
         />
         <SelectField
           label="Fiscal year-end (month) *"
@@ -245,7 +265,8 @@ export function ClientForm({
           label="Incorporation jurisdiction"
           value={form.incorporationJurisdiction}
           onChange={(v) => set("incorporationJurisdiction", v as ClientFormInitial["incorporationJurisdiction"])}
-          options={["", "Federal", "Ontario"]}
+          options={["", ...JURISDICTIONS.map((j) => j.code)]}
+          optionLabels={Object.fromEntries(JURISDICTIONS.map((j) => [j.code, j.label]))}
         />
         <SelectField
           label="Status"
@@ -317,11 +338,7 @@ export function ClientForm({
             label="CRA Remitter"
             value={form.remitterType}
             onChange={(v) => set("remitterType", v as ClientFormInitial["remitterType"])}
-            options={["", "Regular", "Quarterly", "Accelerated1", "Accelerated2"]}
-            optionLabels={{
-              Accelerated1: "Accelerated (Threshold 1)",
-              Accelerated2: "Accelerated (Threshold 2)",
-            }}
+            options={["", "Monthly", "Quarterly"]}
             disabled={!form.payrollApplicable}
           />
           <label className="inline-flex items-center gap-2 text-sm whitespace-nowrap">
@@ -440,6 +457,25 @@ export function ClientForm({
           setInactiveConfirm(false);
         }}
         onCancel={() => setInactiveConfirm(false)}
+      />
+
+      <ConfirmDialog
+        open={pendingConfirm !== null}
+        title="Pending schedule entries will be deleted"
+        message={`There are one or more pending schedule entries that will get deleted with this change. Do you want to proceed?${
+          pendingConfirm && pendingConfirm.count > 1
+            ? ` (${pendingConfirm.count} entries)`
+            : ""
+        }`}
+        confirmLabel="Proceed"
+        cancelLabel="Cancel"
+        tone="danger"
+        onConfirm={() => {
+          const count = pendingConfirm?.count ?? 0;
+          setPendingConfirm(null);
+          void save(true);
+        }}
+        onCancel={() => setPendingConfirm(null)}
       />
     </form>
   );
