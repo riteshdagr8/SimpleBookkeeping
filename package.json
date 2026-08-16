@@ -13,6 +13,7 @@
     "crypto-init": "tsx scripts/crypto-init.ts",
     "backup": "tsx scripts/backup.ts",
     "restore": "tsx scripts/restore.ts",
+    "migrate-multi-entity": "tsx scripts/migrate-multi-entity.ts",
     "delete-obligations": "tsx scripts/delete-client-obligations.ts"
   },
   "prisma": {

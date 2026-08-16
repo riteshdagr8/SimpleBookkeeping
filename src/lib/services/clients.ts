@@ -3,6 +3,8 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { encrypt, isEncryptedFormat } from "@/lib/services/crypto";
 import { writeAudit } from "@/lib/services/audit";
+import { ENTITY_TYPES } from "@/lib/obligation-matrix";
+import { JURISDICTION_CODES } from "@/lib/jurisdictions";
 
 export const DEFAULT_FOLDER_ITEMS = ["CRA Folder", "HST Folder", "Payroll Folder"] as const;
 
@@ -38,9 +40,9 @@ export const clientInputSchema = z.object({
     .optional()
     .nullable()
     .or(z.literal("").transform(() => null)),
-  entityType: z.string().max(40).optional().nullable(),
+  entityType: z.enum(ENTITY_TYPES).optional().nullable(),
   fiscalYearEnd: dateOnly,
-  incorporationJurisdiction: z.enum(["Federal", "Ontario"]).optional().nullable(),
+  incorporationJurisdiction: z.enum(JURISDICTION_CODES as [string, ...string[]]).optional().nullable(),
   address: z.string().max(400).optional().nullable(),
   phone: z.string().max(40).optional().nullable(),
   primaryEmail: z.string().email().max(200),
@@ -56,7 +58,7 @@ export const clientInputSchema = z.object({
     .optional()
     .nullable(),
   remitterType: z
-    .enum(["Regular", "Quarterly", "Accelerated1", "Accelerated2"])
+    .enum(["Monthly", "Quarterly"])
     .optional()
     .nullable(),
   qbOnlinePayroll: z.boolean().optional(),

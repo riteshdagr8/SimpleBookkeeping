@@ -147,30 +147,120 @@ export function hstMonthlyPeriods(start: Date): Period[] {
   return periods;
 }
 
+export interface SalesTaxPeriodsParams {
+  windowStart: Date;
+  fye: Date;
+  frequency: "Monthly" | "Quarterly" | "Annual" | "SelfEmployed";
+  gstYearEnd?: string | null;
+  entityType: string | null;
+}
+
+/**
+ * Sales-tax periods for a frequency, independent of jurisdiction. The caller
+ * assigns the resulting periods to the jurisdiction's filing types (HST / GST /
+ * GST/QST / PST / RST). Monthly is anchored to the rolling window. Quarterly
+ * and Annual (corporation) generate periods for the anchor year and the next
+ * (mirroring the previous HST anchoring so the schedule covers the window). The
+ * annual self-employed rule (Apr 30 payment / Jun 15 filing) applies to
+ * Self-Employed and Individual entities with a Dec-31 FYE.
+ */
+export function salesTaxPeriods(p: SalesTaxPeriodsParams): Period[] {
+  if (p.frequency === "Monthly") return hstMonthlyPeriods(p.windowStart);
+  if (
+    p.frequency === "SelfEmployed" ||
+    (p.frequency === "Annual" && (p.entityType === "Self-Employed" || p.entityType === "Individual"))
+  ) {
+    return hstPeriods(p.fye, "SelfEmployed", p.gstYearEnd);
+  }
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const gstMonth = p.gstYearEnd ? monthNames.findIndex((m) => m.toLowerCase() === p.gstYearEnd!.toLowerCase()) + 1 : 0;
+  const anchorYear = gstMonth > 0
+    ? p.windowStart.getUTCFullYear() + (p.windowStart.getUTCMonth() + 1 > gstMonth ? 1 : 0)
+    : p.fye.getUTCFullYear();
+  const out: Period[] = [];
+  for (const yearOffset of [0, 1]) {
+    const targetFye = gstMonth > 0
+      ? utc(anchorYear + yearOffset, gstMonth + 1, 0)
+      : new Date(Date.UTC(p.fye.getUTCFullYear() + yearOffset, p.fye.getUTCMonth(), p.fye.getUTCDate()));
+    out.push(...hstPeriods(targetFye, p.frequency, p.gstYearEnd));
+  }
+  return out;
+}
+
 /** Ontario Annual Return: due 6 months after taxation year-end. */
 export function ontarioAnnualReturn(fye: Date): { filingDue: Date } {
   return { filingDue: addMonths(fye, 6) };
 }
 
-/** Federal Annual Return: due 60 days after incorporation anniversary. */
-export function federalAnnualReturn(incorporationDate: Date): { filingDue: Date } {
-  const today = new Date();
-
-  // Create the anniversary date in the current year
-  // (same month and day as incorporationDate, but current year)
+/** The incorporation anniversary in the current year; if already passed, next year. */
+export function nextAnniversary(incorporationDate: Date, now = new Date()): Date {
   const anniversary = new Date(Date.UTC(
-    today.getUTCFullYear(),
+    now.getUTCFullYear(),
     incorporationDate.getUTCMonth(),
     incorporationDate.getUTCDate()
   ));
-
-  // If this year's anniversary has already passed, use next year's
-  if (anniversary.getTime() < today.getTime()) {
+  if (anniversary.getTime() < now.getTime()) {
     anniversary.setUTCFullYear(anniversary.getUTCFullYear() + 1);
   }
+  return anniversary;
+}
 
-  // Filing is due 60 days after the anniversary
-  return { filingDue: addDays(anniversary, 60) };
+/** Federal Annual Return: due 60 days after incorporation anniversary. */
+export function federalAnnualReturn(incorporationDate: Date): { filingDue: Date } {
+  return { filingDue: addDays(nextAnniversary(incorporationDate), 60) };
+}
+
+/**
+ * T1 personal tax return deadlines. Work year = the calendar year of the FYE.
+ * Self-Employed: payment due Apr 30, filing due Jun 15 of the following year.
+ * Individual: both filing and payment due Apr 30 of the following year.
+ */
+export function t1Deadlines(
+  workYear: number,
+  isIndividual: boolean
+): { filingDue: Date; paymentDue: Date } {
+  if (isIndividual) {
+    return { filingDue: utc(workYear + 1, 4, 30), paymentDue: utc(workYear + 1, 4, 30) };
+  }
+  return { filingDue: utc(workYear + 1, 6, 15), paymentDue: utc(workYear + 1, 4, 30) };
+}
+
+/** T5013 partnership return: filing due Mar 31 of the following year; no payment. */
+export function t5013Deadlines(workYear: number): { filingDue: Date; paymentDue: null } {
+  return { filingDue: utc(workYear + 1, 3, 31), paymentDue: null };
+}
+
+/** T3 trust return: filing and payment due 90 days after the trust tax year-end. */
+export function t3Deadlines(fye: Date): { filingDue: Date; paymentDue: Date } {
+  return { filingDue: addDays(fye, 90), paymentDue: addDays(fye, 90) };
+}
+
+/**
+ * Provincial Annual Return deadline by jurisdiction:
+ *  - ON, QC: 6 months after FYE
+ *  - BC, NS, NL: incorporation anniversary + 60 days
+ *  - AB, SK, MB, NB, YT, NT, NU: last day of the month following the anniversary month
+ *  - PE: last day of the anniversary month
+ * Anniversary-based provinces require incorporationDate (returns null if absent).
+ */
+export function provincialAnnualReturnDeadline(
+  jurisdiction: string | null,
+  fye: Date,
+  incorporationDate: Date | null,
+  now = new Date()
+): Date | null {
+  if (jurisdiction === "ON" || jurisdiction === "QC") return addMonths(fye, 6);
+  if (!incorporationDate) return null;
+  const anniversary = nextAnniversary(incorporationDate, now);
+  if (jurisdiction === "BC" || jurisdiction === "NS" || jurisdiction === "NL") {
+    return addDays(anniversary, 60);
+  }
+  if (jurisdiction === "PE") {
+    // last day of the anniversary month
+    return utc(anniversary.getUTCFullYear(), anniversary.getUTCMonth() + 2, 0);
+  }
+  // AB, SK, MB, NB, YT, NT, NU: last day of the month following the anniversary month
+  return utc(anniversary.getUTCFullYear(), anniversary.getUTCMonth() + 3, 0);
 }
 
 /** T4/T4A/T5 Information Returns: due the last day of February of the year following the work year. */
@@ -182,15 +272,9 @@ export function infoReturnDeadlines(workYear: number): { filingDue: Date } {
 /** Payroll remittance periods (CRA). */
 export function payrollRemittancePeriods(
   fye: Date,
-  remitterType: "Regular" | "Quarterly" | "Accelerated1" | "Accelerated2"
+  remitterType: "Monthly" | "Quarterly"
 ): Period[] {
   const year = fye.getUTCFullYear();
-  // Accelerated remitter types are accepted in the form but the rule math is
-  // not yet implemented — return [] so the generator skips these rows. The
-  // schedule page surfaces a reminder.
-  if (remitterType === "Accelerated1" || remitterType === "Accelerated2") {
-    return [];
-  }
   if (remitterType === "Quarterly") {
     const quarterEnds = [
       utc(year, 3, 31),
@@ -207,7 +291,7 @@ export function payrollRemittancePeriods(
       return { periodStart, periodEnd, filingDue: due, paymentDue: due };
     });
   }
-  // Regular (monthly)
+  // Monthly remitter: 12 monthly periods, due the 15th of the following month.
   const periods: Period[] = [];
   for (let m = 0; m < 12; m++) {
     const periodEnd = utc(year, m + 1, 1);
@@ -266,11 +350,8 @@ export function payrollRunPeriods(
 
 export function payrollRemittancePeriodsRolling(
   start: Date,
-  remitterType: "Regular" | "Quarterly" | "Accelerated1" | "Accelerated2"
+  remitterType: "Monthly" | "Quarterly"
 ): Period[] {
-  if (remitterType === "Accelerated1" || remitterType === "Accelerated2") {
-    return [];
-  }
   const end = new Date(start);
   end.setUTCMonth(end.getUTCMonth() + 12);
   if (remitterType === "Quarterly") {
