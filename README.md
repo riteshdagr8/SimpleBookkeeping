@@ -196,6 +196,67 @@ npm run restore -- --list   # show available backups
 
 Stop the SimpleBookkeeping app before restoring.
 
+## Schedule maintenance
+
+Two one-off scripts keep the compliance schedule correct. Both are **dry-run by
+default**, take a snapshot of the database first, and are safe to re-run. Run
+them with the app stopped, and **deploy the current code before running them** —
+the repair derives the correct dates from the rules in `compliance-rules.ts`, so
+running it against old code would write the old dates back.
+
+### Fiscal year-end → month-end (`npm run backfill-fye`)
+
+A fiscal year-end is the **last day** of a month, but earlier versions stored it
+as the first. Because deadlines are derived from the FYE, that shifted dates
+(a Feb 28 year-end produced a May 28 annual-HST deadline instead of May 31).
+This script moves every client's FYE to month-end and re-derives the dates of
+its auto-generated, Pending obligations **in place** — the rows keep their ids,
+so workflow checklists and client interactions are preserved. Historical and
+completed rows are never touched.
+
+```bash
+npm run backfill-fye                              # dry run — prints every change
+npm run backfill-fye -- --apply                   # current + future rows only
+npm run backfill-fye -- --apply --past-months=13  # also correct overdue rows
+```
+
+By default only the current and future schedule is corrected. Pass
+`--past-months=N` to also rewrite rows that are already past their due date —
+needed for a database whose schedule was built by the old rules, since the
+generator never touches past rows.
+
+### Duplicate obligations (`npm run dedup-obligations`)
+
+The old generator only ever added rows, so a client could accumulate two copies
+of the same obligation differing by a day or two in `periodStart`. This script
+collapses them, keeping the fuller period.
+
+```bash
+npm run dedup-obligations            # dry run — lists each KEEP/DELETE
+npm run dedup-obligations -- --apply
+```
+
+A group is treated as duplicates only when the client, filing type, due date
+**and** both period endpoints (within ~2 days) agree — so rows that merely share
+a due date but cover different periods (e.g. a monthly and a quarterly return
+landing on the same deadline) are left alone. Any row with a workflow row or
+client interaction attached is **skipped**, never deleted.
+
+### Recommended order on an existing database
+
+```bash
+stop.cmd                                        # 1. stop the app
+npm run backup                                  # 2. snapshot (+ verify the .json sha256)
+npm run dedup-obligations                       # 3. dry run, review
+npm run dedup-obligations -- --apply
+npm run backfill-fye -- --past-months=13        # 4. dry run, review
+npm run backfill-fye -- --apply --past-months=13
+start.cmd                                       # 5. restart
+```
+
+De-duplicate **before** re-deriving dates: it leaves a clean set of rows for the
+backfill to match against.
+
 ## CLI scripts
 
 | command | purpose |
@@ -210,6 +271,8 @@ Stop the SimpleBookkeeping app before restoring.
 | `npm run crypto-init` | generate `APP_DATA_KEY` and append to `.env` |
 | `npm run backup` | run a backup now |
 | `npm run restore` | restore a backup (interactive) |
+| `npm run backfill-fye` | move client fiscal year-ends to month-end, and repair affected obligation dates (see below) |
+| `npm run dedup-obligations` | collapse duplicate obligation rows (see below) |
 | `start.cmd` / `./start.sh` | detached dev server (background, log files) |
 | `stop.cmd` / `./stop.sh` | stop the detached dev server |
 
