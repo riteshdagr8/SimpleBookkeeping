@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { format } from "date-fns";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getConfigByType, WORKFLOW_CONFIGS } from "@/lib/workflows/configs";
@@ -8,6 +7,7 @@ import { listWorkflows, getOrCreateWorkflow } from "@/lib/workflows/service";
 import { getActiveInteraction } from "@/lib/workflows/interactions";
 import { WorkflowFilters } from "@/components/workflow-filters";
 import { WorkflowEditor } from "@/components/workflow-editor";
+import { WorkflowTable } from "@/components/workflow-table";
 import type { WorkflowType } from "@/lib/workflows/types";
 import { filingTypeLabel } from "@/lib/obligation-matrix";
 import { jurisdictionLabel } from "@/lib/jurisdictions";
@@ -59,7 +59,10 @@ export async function buildWorkflowListProps(
         ).sort()
       : [];
 
-  return { user, config, rows, clients, allStatuses, provinces };
+  // Income Taxes is the only list that shows the client's fiscal year-end.
+  const showFye = type === "IncomeTax";
+
+  return { user, config, rows, clients, allStatuses, provinces, showFye };
 }
 
 function formatUTC(d: Date | null, withYear = true): string {
@@ -78,6 +81,7 @@ export function WorkflowListView({
   clients,
   allStatuses,
   provinces,
+  showFye,
 }: Awaited<ReturnType<typeof buildWorkflowListProps>>) {
   return (
     <div className="space-y-4">
@@ -100,49 +104,7 @@ export function WorkflowListView({
         <WorkflowFilters clients={clients} statuses={allStatuses} slug={config.slug} provinces={provinces} />
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-border bg-surface">
-        <table className="min-w-full text-sm">
-          <thead className="bg-bg-subtle text-left text-xs text-fg-muted">
-            <tr>
-              <th className="px-3 py-2 font-medium">Client</th>
-              <th className="px-3 py-2 font-medium">Type</th>
-              <th className="px-3 py-2 font-medium">Filing due</th>
-              <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 font-medium">Updated</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-fg-muted">
-                  No items match the current filters.
-                </td>
-              </tr>
-            )}
-            {rows.map((r) => (
-              <tr key={r.obligationId} className="border-t border-border">
-                <td className="px-3 py-2 font-medium text-fg">
-                  <Link
-                    href={`/${config.slug}/${r.obligationId}`}
-                    className="text-fg hover:text-primary hover:underline"
-                  >
-                    {r.client.fileNumber ? `${r.client.fileNumber} — ` : ""}
-                    {r.client.legalName}
-                  </Link>
-                </td>
-                <td className="px-3 py-2 text-fg">{filingTypeLabel(r.obligation.filingType, r.client.incorporationJurisdiction)}</td>
-                <td className="px-3 py-2 text-fg-muted">{formatUTC(r.obligation.filingDueDate)}</td>
-                <td className="px-3 py-2 text-fg">
-                  <span className="rounded-full bg-bg-subtle px-2 py-0.5 text-xs">{r.status}</span>
-                </td>
-                <td className="px-3 py-2 text-fg-muted">
-                  {r.updatedAt.getTime() > 0 ? format(r.updatedAt, "MMM d, yyyy") : "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <WorkflowTable rows={rows} slug={config.slug} showFye={showFye} />
     </div>
   );
 }

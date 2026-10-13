@@ -93,10 +93,11 @@ function statusLabel(s: string): string {
 }
 
 /** Sort obligations by the given sort key and direction. */
-function sortObligations<T extends { client: { fileNumber: string | null; legalName: string; incorporationJurisdiction: string | null }; filingType: string; periodStart: Date | null; periodEnd: Date | null; filingDueDate: Date | null }>(
+function sortObligations<T extends { id: string; client: { fileNumber: string | null; legalName: string; incorporationJurisdiction: string | null }; filingType: string; periodStart: Date | null; periodEnd: Date | null; filingDueDate: Date | null }>(
   items: T[],
   sortBy: string,
-  sortDir: string
+  sortDir: string,
+  statusByObligation?: Map<string, string>
 ): T[] {
   const dir = sortDir === "desc" ? -1 : 1;
   return [...items].sort((a, b) => {
@@ -113,6 +114,8 @@ function sortObligations<T extends { client: { fileNumber: string | null; legalN
       const ad = a.filingDueDate?.getTime() ?? 0;
       const bd = b.filingDueDate?.getTime() ?? 0;
       cmp = ad - bd;
+    } else if (sortBy === "status") {
+      cmp = (statusByObligation?.get(a.id) ?? "").localeCompare(statusByObligation?.get(b.id) ?? "");
     }
     return cmp * dir;
   });
@@ -160,7 +163,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // Sorting
   const sortBy = sp.sortBy || "filingDue";
   const sortDir = sp.sortDir || "asc";
-  filtered = sortObligations(filtered, sortBy, sortDir);
+  const statusById = new Map(obligations.map((o) => [o.id, effectiveStatus(o)]));
+  filtered = sortObligations(filtered, sortBy, sortDir, statusById);
 
   function toggleSort(field: string): string {
     if (sortBy === field) {
@@ -228,7 +232,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   Filing due {sortBy === "filingDue" ? (sortDir === "asc" ? "▲" : "▼") : ""}
                 </Link>
               </th>
-              <th className="px-3 py-2 font-medium">Status</th>
+              <th className="px-3 py-2 font-medium">
+                <Link href={sortLink("status")} className="hover:text-fg">
+                  Status {sortBy === "status" ? (sortDir === "asc" ? "▲" : "▼") : ""}
+                </Link>
+              </th>
             </tr>
           </thead>
           <tbody>

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { InfoDialog } from "@/components/info-dialog";
 import { JURISDICTIONS } from "@/lib/jurisdictions";
 import { ENTITY_TYPES } from "@/lib/obligation-matrix";
 
@@ -14,7 +15,7 @@ export interface ClientFormInitial {
   contactName: string;
   businessNumber: string;
   entityType: string;
-  fiscalYearEnd: string; // yyyy-mm-dd (always day 01)
+  fiscalYearEnd: string; // yyyy-mm-dd (always the last day of the month)
   incorporationDate: string;
   incorporationJurisdiction: "" | (typeof JURISDICTIONS)[number]["code"];
   address: string;
@@ -43,7 +44,7 @@ export const emptyClient: ClientFormInitial = {
   contactName: "",
   businessNumber: "",
   entityType: "",
-  fiscalYearEnd: `${new Date().getFullYear()}-01-01`,
+  fiscalYearEnd: `${new Date().getFullYear()}-01-31`,
   incorporationDate: "",
   incorporationJurisdiction: "",
   address: "",
@@ -82,20 +83,38 @@ function fyeToMonth(fye: string): string {
 
 function fyeFromMonth(year: string, month: string): string {
   if (!year || !month) return "";
-  return `${year}-${month}-01`;
+  // Day 0 of the following month is the last day of this month.
+  const lastDay = new Date(Date.UTC(Number(year), Number(month), 0)).getUTCDate();
+  return `${year}-${month}-${String(lastDay).padStart(2, "0")}`;
+}
+
+/**
+ * A fiscal year-end is always a month-end, so normalise whatever is stored to
+ * the last day of its month on save — including a legacy day-01 value the user
+ * never touched in the month dropdown.
+ */
+function normalizeFye(fye: string): string | null {
+  if (!fye) return null;
+  const month = fyeToMonth(fye);
+  return month ? fyeFromMonth(fye.slice(0, 4), month) : fye;
 }
 
 export function ClientForm({
   initial,
   submitLabel,
   reviewComplete = false,
+  justSaved = false,
 }: {
   initial: ClientFormInitial;
   submitLabel: string;
   reviewComplete?: boolean;
+  justSaved?: boolean;
 }) {
   const router = useRouter();
   const [form, setForm] = useState<ClientFormInitial>(initial);
+  // "Changes were saved" acknowledgement. The page reloads with ?saved=1 after a
+  // successful save, which arrives here as justSaved.
+  const [savedOpen, setSavedOpen] = useState(justSaved);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showQb, setShowQb] = useState(false);
@@ -150,7 +169,7 @@ export function ClientForm({
       contactName: form.contactName || null,
       businessNumber: form.businessNumber || null,
       entityType: form.entityType || null,
-      fiscalYearEnd: form.fiscalYearEnd || null,
+      fiscalYearEnd: normalizeFye(form.fiscalYearEnd),
       incorporationDate: form.incorporationDate || null,
       incorporationJurisdiction: form.incorporationJurisdiction || null,
       address: form.address || null,
@@ -203,7 +222,11 @@ export function ClientForm({
         setPendingConfirm({ count: data.affectedCount ?? 0 });
         return;
       }
-      router.push(`/clients/${data.client?.id ?? initial.id}`);
+      // Land on the client details page (or the newly created client) with
+      // ?saved=1 so it shows the "Changes were saved" dialog.
+      const clientId = data.client?.id ?? initial.id;
+      setSavedOpen(true);
+      if (clientId) router.push(`/clients/${clientId}?saved=1`);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
@@ -475,6 +498,15 @@ export function ClientForm({
           void save(true);
         }}
         onCancel={() => setPendingConfirm(null)}
+      />
+
+      <InfoDialog
+        open={savedOpen}
+        title="Changes were saved"
+        onClose={() => {
+          setSavedOpen(false);
+          if (initial.id) router.replace(`/clients/${initial.id}`);
+        }}
       />
     </form>
   );

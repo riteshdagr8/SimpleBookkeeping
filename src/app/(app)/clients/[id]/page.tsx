@@ -49,9 +49,16 @@ function toInitial(c: NonNullable<Awaited<ReturnType<typeof getClient>>>): Clien
   };
 }
 
-export default async function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ClientDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ saved?: string }>;
+}) {
   const user = await requireUser();
   const { id } = await params;
+  const { saved } = await searchParams;
   const client = await getClient(user.tenantId, id);
   if (!client) notFound();
   // Staff cannot view inactive clients.
@@ -111,7 +118,12 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           <div className="rounded-lg border border-border bg-surface p-4">
             <h2 className="text-sm font-semibold text-fg">Master data</h2>
             <div className="mt-3">
-              <ClientForm initial={toInitial(client)} submitLabel="Save changes" reviewComplete={client.reviewComplete} />
+              <ClientForm
+                initial={toInitial(client)}
+                submitLabel="Save changes"
+                reviewComplete={client.reviewComplete}
+                justSaved={saved === "1"}
+              />
             </div>
           </div>
         </div>

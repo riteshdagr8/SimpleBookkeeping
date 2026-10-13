@@ -22,6 +22,28 @@ function addMonths(d: Date, months: number): Date {
   return r;
 }
 
+/**
+ * The last day of the month `months` months after `d`'s month.
+ *
+ * Canadian filing deadlines land on a month boundary ("6 months after the
+ * fiscal year-end", "the last day of the month following the quarter"). Plain
+ * `addMonths` preserves the day-of-month, which is only right when both months
+ * have the same length — e.g. a Feb 28 year-end + 3 months would give May 28
+ * instead of May 31. Use this wherever a deadline is meant to be a month-end.
+ */
+function addMonthsMonthEnd(d: Date, months: number): Date {
+  const target = d.getUTCMonth() + months;
+  const year = d.getUTCFullYear() + Math.floor(target / 12);
+  const month0 = ((target % 12) + 12) % 12;
+  // Last day of the month at 0-based index month0: day 0 of the following month.
+  return new Date(Date.UTC(year, month0 + 1, 0));
+}
+
+/** The last day of the month containing `d`. */
+function monthEnd(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+}
+
 function addDays(d: Date, days: number): Date {
   const r = new Date(d.getTime());
   r.setUTCDate(r.getUTCDate() + days);
@@ -32,14 +54,15 @@ export function utc(y: number, m: number, d: number): Date {
   return new Date(Date.UTC(y, m - 1, d));
 }
 
-/** T2 Corporate tax: filing due 6 months after FYE; balance due 2 (or 3) months after FYE. */
+/** T2 Corporate tax: filing due 6 months after FYE; balance due 2 (or 3) months after FYE.
+ *  Both deadlines land on the last day of the target month. */
 export function t2Deadlines(
   fye: Date,
   threeMonthEligible: boolean
 ): { filingDue: Date; paymentDue: Date } {
   return {
-    filingDue: addMonths(fye, 6),
-    paymentDue: addMonths(fye, threeMonthEligible ? 3 : 2),
+    filingDue: addMonthsMonthEnd(fye, 6),
+    paymentDue: addMonthsMonthEnd(fye, threeMonthEligible ? 3 : 2),
   };
 }
 
@@ -92,9 +115,8 @@ export function hstPeriods(
     // Only applies when the individual's FYE is Dec 31. Other FYEs use different
     // deadlines that the spec doesn't cover; return [] to avoid generating wrong dates.
     if (fye.getUTCMonth() !== 11 || fye.getUTCDate() !== 31) return [];
-    const periodStart = addMonths(fye, 1);
-    periodStart.setUTCDate(1);
-    periodStart.setUTCHours(0, 0, 0, 0);
+    // Period runs the calendar year ending at the Dec 31 year-end.
+    const periodStart = utc(fye.getUTCFullYear(), 1, 1);
     return [
       {
         periodStart,
@@ -111,14 +133,15 @@ export function hstPeriods(
     // June year-end). `fye` is the year-end date in the target year.
     const periodEnd = fye;
     const periodStart = addDays(addMonths(periodEnd, -12), 1);
-    const due = addMonths(periodEnd, 3);
+    const due = addMonthsMonthEnd(periodEnd, 3);
     return [{ periodStart, periodEnd, filingDue: due, paymentDue: due }];
   }
-  const periodStart = addMonths(fye, 1);
-  periodStart.setUTCDate(1);
-  periodStart.setUTCHours(0, 0, 0, 0);
-  const periodEnd = fye;
-  const due = addMonths(fye, 3);
+  // A fiscal year-end is a month-end, so the period runs from the day after the
+  // previous year-end through this one. No gstYearEnd here, so the month and day
+  // come from the FYE itself.
+  const periodEnd = monthEnd(fye);
+  const periodStart = addDays(addMonths(periodEnd, -12), 1);
+  const due = addMonthsMonthEnd(periodEnd, 3);
   return [{ periodStart, periodEnd, filingDue: due, paymentDue: due }];
 }
 
@@ -159,9 +182,9 @@ export interface SalesTaxPeriodsParams {
  * Sales-tax periods for a frequency, independent of jurisdiction. The caller
  * assigns the resulting periods to the jurisdiction's filing types (HST / GST /
  * GST/QST / PST / RST). Monthly is anchored to the rolling window. Quarterly
- * and Annual (corporation) generate periods for the anchor year and the next
- * (mirroring the previous HST anchoring so the schedule covers the window). The
- * annual self-employed rule (Apr 30 payment / Jun 15 filing) applies to
+ * and Annual (corporation) generate periods anchored to the window's start
+ * month and the next, so the schedule covers the window. The annual
+ * self-employed rule (Apr 30 payment / Jun 15 filing) applies to
  * Self-Employed and Individual entities with a Dec-31 FYE.
  */
 export function salesTaxPeriods(p: SalesTaxPeriodsParams): Period[] {
@@ -187,9 +210,9 @@ export function salesTaxPeriods(p: SalesTaxPeriodsParams): Period[] {
   return out;
 }
 
-/** Ontario Annual Return: due 6 months after taxation year-end. */
+/** Ontario Annual Return: due the last day of the month 6 months after the year-end. */
 export function ontarioAnnualReturn(fye: Date): { filingDue: Date } {
-  return { filingDue: addMonths(fye, 6) };
+  return { filingDue: addMonthsMonthEnd(fye, 6) };
 }
 
 /** The incorporation anniversary in the current year; if already passed, next year. */
@@ -249,7 +272,7 @@ export function provincialAnnualReturnDeadline(
   incorporationDate: Date | null,
   now = new Date()
 ): Date | null {
-  if (jurisdiction === "ON" || jurisdiction === "QC") return addMonths(fye, 6);
+  if (jurisdiction === "ON" || jurisdiction === "QC") return addMonthsMonthEnd(fye, 6);
   if (!incorporationDate) return null;
   const anniversary = nextAnniversary(incorporationDate, now);
   if (jurisdiction === "BC" || jurisdiction === "NS" || jurisdiction === "NL") {
