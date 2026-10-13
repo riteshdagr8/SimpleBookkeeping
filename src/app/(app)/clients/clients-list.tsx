@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { SortableTh, useSort, type SortValue } from "@/components/sortable";
 
 export interface ClientRow {
   id: string;
@@ -27,6 +28,17 @@ type Pending = {
   clientName: string;
 } | null;
 
+type ClientFilter = "active" | "inactive" | "all";
+
+const ACCESSORS: Record<string, (c: ClientRow) => SortValue> = {
+  fileNumber: (c) => c.fileNumber ?? null,
+  legalName: (c) => c.legalName,
+  businessNumber: (c) => c.businessNumber ?? null,
+  fiscalYearEnd: (c) => new Date(c.fiscalYearEnd).getTime(),
+  review: (c) => (!c.active ? -1 : c.reviewComplete ? 1 : 0),
+  status: (c) => (!c.active ? "Inactive" : c.onboardingStatus),
+};
+
 function formatUTC(iso: string): string {
   return new Intl.DateTimeFormat("en-US", {
     timeZone: "UTC",
@@ -44,15 +56,23 @@ export function ClientsList({ clients, userRole }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const showInactive = params.get("showInactive") === "1";
-  const visible = showInactive ? clients : clients.filter((c) => c.active);
-  const hiddenCount = clients.length - visible.length;
+  const statusParam = params.get("status");
+  const filter: ClientFilter =
+    statusParam === "inactive" ? "inactive" : statusParam === "all" ? "all" : "active";
+  const visible =
+    filter === "all"
+      ? clients
+      : filter === "inactive"
+        ? clients.filter((c) => !c.active)
+        : clients.filter((c) => c.active);
 
-  function toggleShowInactive() {
-    const next = new URLSearchParams(params.toString());
-    if (showInactive) next.delete("showInactive");
-    else next.set("showInactive", "1");
-    startTransition(() => router.replace(`?${next.toString()}`));
+  const { sorted, sortBy, sortDir, toggle } = useSort(visible, "fileNumber", ACCESSORS);
+
+  function setFilter(next: ClientFilter) {
+    const qs = new URLSearchParams(params.toString());
+    if (next === "active") qs.delete("status");
+    else qs.set("status", next);
+    startTransition(() => router.replace(`?${qs.toString()}`));
   }
 
   async function performAction() {
@@ -82,37 +102,35 @@ export function ClientsList({ clients, userRole }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <label className="inline-flex items-center gap-2 text-sm text-fg">
-          <input
-            type="checkbox"
-            checked={showInactive}
-            onChange={toggleShowInactive}
-            className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
-          />
-          Show inactive clients
+        <label className="block text-xs font-medium text-fg-muted">
+          Show
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as ClientFilter)}
+            className="mt-1 block rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-fg"
+          >
+            <option value="active">Active Clients</option>
+            <option value="inactive">Inactive Clients</option>
+            <option value="all">All Clients</option>
+          </select>
         </label>
-        {hiddenCount > 0 && (
-          <span className="text-xs text-fg-muted">
-            ({hiddenCount} hidden)
-          </span>
-        )}
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border bg-surface">
         <table className="min-w-full text-sm">
           <thead className="bg-bg-subtle text-left text-xs text-fg-muted">
             <tr>
-              <th className="px-4 py-2 font-medium">File #</th>
-              <th className="px-4 py-2 font-medium">Legal name</th>
-              <th className="px-4 py-2 font-medium">BN</th>
-              <th className="px-4 py-2 font-medium">FYE</th>
-              <th className="px-4 py-2 font-medium">Review</th>
-              <th className="px-4 py-2 font-medium">Status</th>
+              <SortableTh label="File #" sortKey="fileNumber" sortBy={sortBy} sortDir={sortDir} onToggle={toggle} className="px-4 py-2 font-medium" />
+              <SortableTh label="Legal name" sortKey="legalName" sortBy={sortBy} sortDir={sortDir} onToggle={toggle} className="px-4 py-2 font-medium" />
+              <SortableTh label="BN" sortKey="businessNumber" sortBy={sortBy} sortDir={sortDir} onToggle={toggle} className="px-4 py-2 font-medium" />
+              <SortableTh label="FYE" sortKey="fiscalYearEnd" sortBy={sortBy} sortDir={sortDir} onToggle={toggle} className="px-4 py-2 font-medium" />
+              <SortableTh label="Review" sortKey="review" sortBy={sortBy} sortDir={sortDir} onToggle={toggle} className="px-4 py-2 font-medium" />
+              <SortableTh label="Status" sortKey="status" sortBy={sortBy} sortDir={sortDir} onToggle={toggle} className="px-4 py-2 font-medium" />
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
-            {visible.length === 0 && (
+            {sorted.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-fg-muted">
                   {clients.length === 0 ? (
@@ -123,13 +141,17 @@ export function ClientsList({ clients, userRole }: Props) {
                       </Link>
                       .
                     </>
+                  ) : filter === "inactive" ? (
+                    <>No inactive clients.</>
+                  ) : filter === "all" ? (
+                    <>No clients.</>
                   ) : (
-                    <>No active clients. Toggle &quot;Show inactive&quot; to see them.</>
+                    <>No active clients. Choose &quot;All Clients&quot; to see inactive ones.</>
                   )}
                 </td>
               </tr>
             )}
-            {visible.map((c) => {
+            {sorted.map((c) => {
               const isInactive = !c.active;
               return (
                 <tr

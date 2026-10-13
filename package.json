@@ -14,6 +14,8 @@
     "backup": "tsx scripts/backup.ts",
     "restore": "tsx scripts/restore.ts",
     "migrate-multi-entity": "tsx scripts/migrate-multi-entity.ts",
+    "backfill-fye": "tsx scripts/backfill-fye-last-day.ts",
+    "dedup-obligations": "tsx scripts/dedup-obligations.ts",
     "delete-obligations": "tsx scripts/delete-client-obligations.ts"
   },
   "prisma": {
