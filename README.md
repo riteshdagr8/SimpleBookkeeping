@@ -187,14 +187,17 @@ if the CLI is not on PATH. To install the CLI on Windows, grab
 `sqlite-tools-win-x64` from <https://www.sqlite.org/download.html> and
 put the folder on your system PATH.
 
-To restore:
+To restore a backup, pass its file name. `--file` is required:
 
 ```bash
-npm run restore             # interactive picker
-npm run restore -- --list   # show available backups
+npm run restore-payroll-remittance -- --list                                # show available backups
+npm run restore-payroll-remittance -- --file=simplebookkeeping-20261120-000210.db
 ```
 
-Stop the SimpleBookkeeping app before restoring.
+Backups are looked up in `backups/pre-migration` and `backups/`. Stop the
+SimpleBookkeeping app before restoring; the script refuses to run while the app
+is listening. Before overwriting, it saves the current database and prints that
+file's name, so the restore can be undone.
 
 ## Schedule maintenance
 
@@ -285,7 +288,7 @@ backfill to match against.
 | `npm run create-admin -- --email <e> --password <p> --name "<n>"` | create the first admin (or any admin) |
 | `npm run crypto-init` | generate `APP_DATA_KEY` and append to `.env` |
 | `npm run backup` | run a backup now |
-| `npm run restore` | restore a backup (interactive) |
+| `npm run restore-payroll-remittance -- --file=<name>` | restore a backup by file name (see Backups) |
 | `npm run backfill-fye` | move client fiscal year-ends to month-end, and repair affected obligation dates (see below) |
 | `npm run dedup-obligations` | collapse duplicate obligation rows (see below) |
 | `npm run remove-payroll-remittance` | delete Payroll Remittance schedule rows (dry run by default; see below) |
@@ -321,7 +324,7 @@ scripts/
   create-admin.ts         CLI admin creation
   crypto-init.ts          Generate APP_DATA_KEY
   backup.ts               Hourly backup with 7d hourly / 1d daily retention
-  restore.ts              Interactive restore picker
+  restore-payroll-remittance.ts  Restore a backup by file name
 data/
   app.db                  SQLite database (gitignored)
 backups/

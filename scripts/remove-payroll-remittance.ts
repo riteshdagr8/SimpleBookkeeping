@@ -26,6 +26,7 @@
  */
 
 import "dotenv/config";
+import { basename } from "path";
 import { createBackupSnapshot } from "./lib/backup-snapshot";
 import { prisma } from "../src/lib/prisma";
 
@@ -144,7 +145,9 @@ async function main() {
 
   console.log("\nCreating a backup snapshot first...");
   const snapshot = await createBackupSnapshot(undefined, "pre-remove-payroll-remittance");
-  console.log(`Backup snapshot: ${snapshot.dbOut}`);
+  const backupName = basename(snapshot.dbOut);
+  console.log(`Backup saved as: ${backupName}`);
+  console.log(`Location       : ${snapshot.dbOut}`);
 
   const ids = toDelete.map((r) => r.id);
   // Interactions have no foreign key to the obligation, so they are removed
@@ -157,6 +160,7 @@ async function main() {
   if (worked.length > 0 && !INCLUDE_WORKED) {
     console.log(`${worked.length} row(s) with recorded work were kept (see the list above).`);
   }
+  console.log(`\nTo restore this backup (app stopped):\n  npm run restore-payroll-remittance -- --file=${backupName}`);
 }
 
 main()
