@@ -17,9 +17,19 @@ import { jurisdictionLabel } from "@/lib/jurisdictions";
  * workflow's page.tsx. Returns the list rows + active client list for the
  * filter dropdown.
  */
+const HST_FREQUENCY_VALUES = ["Monthly", "Quarterly", "Annual", "SelfEmployed"];
+
 export async function buildWorkflowListProps(
   type: WorkflowType,
-  searchParams: { clientId?: string; province?: string; from?: string; to?: string; status?: string }
+  searchParams: {
+    client?: string;
+    province?: string;
+    fyeMonth?: string;
+    frequency?: string;
+    from?: string;
+    to?: string;
+    status?: string;
+  }
 ) {
   const user = await requireUser();
   const config = getConfigByType(type);
@@ -31,20 +41,22 @@ export async function buildWorkflowListProps(
     searchParams.status === "all" || searchParams.status === ""
       ? undefined
       : searchParams.status ?? "Pending";
+  const fyeMonthNum = Number(searchParams.fyeMonth);
   const filters = {
-    clientId: searchParams.clientId,
+    clientName: searchParams.client?.trim() || undefined,
     province: searchParams.province || undefined,
+    fyeMonth: Number.isInteger(fyeMonthNum) && fyeMonthNum >= 1 && fyeMonthNum <= 12 ? fyeMonthNum : undefined,
+    frequency: HST_FREQUENCY_VALUES.includes(searchParams.frequency ?? "") ? searchParams.frequency : undefined,
     from: searchParams.from ? new Date(searchParams.from) : undefined,
     to: searchParams.to ? new Date(searchParams.to) : undefined,
     status: statusFilter,
   };
   const rows = await listWorkflows(user.tenantId, type, filters);
 
-  // Active clients for the filter dropdown.
+  // Active clients, used to build the Province options.
   const clients = await prisma.client.findMany({
     where: { tenantId: user.tenantId, active: true },
-    orderBy: [{ fileNumber: "asc" }],
-    select: { id: true, fileNumber: true, legalName: true, incorporationJurisdiction: true },
+    select: { incorporationJurisdiction: true },
   });
 
   // Build the status list for the filter (initial + all statusByStep entries).
@@ -66,7 +78,20 @@ export async function buildWorkflowListProps(
   // Income Taxes is the only list that shows the client's fiscal year-end.
   const showFye = type === "IncomeTax";
 
-  return { user, config, rows, clients, allStatuses, provinces, showFye };
+  return {
+    user,
+    config,
+    rows,
+    allStatuses,
+    provinces,
+    showFye,
+    // Filters that only apply to one workflow.
+    showFyeMonth: type === "IncomeTax",
+    showFrequency: type === "SalesTax",
+    // Sales Tax periods are shown by period end; the other workflows show the
+    // filing due date.
+    dateColumn: type === "SalesTax" ? ("periodEnd" as const) : ("filingDue" as const),
+  };
 }
 
 function formatUTC(d: Date | null, withYear = true): string {
@@ -82,10 +107,12 @@ function formatUTC(d: Date | null, withYear = true): string {
 export function WorkflowListView({
   config,
   rows,
-  clients,
   allStatuses,
   provinces,
   showFye,
+  showFyeMonth,
+  showFrequency,
+  dateColumn,
 }: Awaited<ReturnType<typeof buildWorkflowListProps>>) {
   return (
     <div className="space-y-4">
@@ -105,10 +132,16 @@ export function WorkflowListView({
       </div>
 
       <div className="rounded-lg border border-border bg-surface p-4">
-        <WorkflowFilters clients={clients} statuses={allStatuses} slug={config.slug} provinces={provinces} />
+        <WorkflowFilters
+          statuses={allStatuses}
+          slug={config.slug}
+          provinces={provinces}
+          showFyeMonth={showFyeMonth}
+          showFrequency={showFrequency}
+        />
       </div>
 
-      <WorkflowTable rows={rows} slug={config.slug} showFye={showFye} />
+      <WorkflowTable rows={rows} slug={config.slug} showFye={showFye} dateColumn={dateColumn} />
     </div>
   );
 }

@@ -200,8 +200,13 @@ export async function updateWorkflow(
  * obligation and the client for display.
  */
 export interface ListFilters {
-  clientId?: string;
+  /** Case-insensitive partial match on the client's legal name. */
+  clientName?: string;
   province?: string;
+  /** Client fiscal year-end month, 1 (Jan) to 12 (Dec). */
+  fyeMonth?: number;
+  /** Client.hstFrequency: Monthly | Quarterly | Annual | SelfEmployed. */
+  frequency?: string;
   from?: Date;
   to?: Date;
   status?: string;
@@ -245,7 +250,6 @@ export async function listWorkflows(
       client: {
         tenantId,
         active: true,
-        ...(filters.clientId ? { id: filters.clientId } : {}),
         ...(filters.province ? { incorporationJurisdiction: filters.province } : {}),
       },
     },
@@ -256,12 +260,17 @@ export async function listWorkflows(
       periodStart: true,
       periodEnd: true,
       clientId: true,
-      client: { select: { id: true, fileNumber: true, legalName: true, incorporationJurisdiction: true, fiscalYearEnd: true, tenantId: true } },
+      client: { select: { id: true, fileNumber: true, legalName: true, incorporationJurisdiction: true, fiscalYearEnd: true, hstFrequency: true, tenantId: true } },
     },
   });
 
-  // Build a date filter on the obligation's filingDueDate.
+  // Client-level filters are applied here (the client name needs a
+  // case-insensitive match, which is simplest to do on the loaded rows).
+  const nameNeedle = filters.clientName?.trim().toLowerCase();
   const filtered = obligations.filter((o) => {
+    if (nameNeedle && !o.client.legalName.toLowerCase().includes(nameNeedle)) return false;
+    if (filters.fyeMonth && o.client.fiscalYearEnd.getUTCMonth() + 1 !== filters.fyeMonth) return false;
+    if (filters.frequency && o.client.hstFrequency !== filters.frequency) return false;
     if (filters.from && o.filingDueDate && o.filingDueDate.getTime() < filters.from.getTime()) return false;
     if (filters.to && o.filingDueDate && o.filingDueDate.getTime() > filters.to.getTime()) return false;
     return true;

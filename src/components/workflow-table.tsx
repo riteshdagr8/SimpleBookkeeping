@@ -15,25 +15,34 @@ function formatUTC(d: Date | null): string {
   }).format(d);
 }
 
-const ACCESSORS: Record<string, (r: ListedWorkflow) => SortValue> = {
-  client: (r) => r.client.fileNumber ?? r.client.legalName,
-  type: (r) => filingTypeLabel(r.obligation.filingType, r.client.incorporationJurisdiction),
-  fye: (r) => r.client.fiscalYearEnd.getTime(),
-  filingDue: (r) => r.obligation.filingDueDate?.getTime() ?? null,
-  status: (r) => r.status,
-  updated: (r) => r.updatedAt.getTime(),
-};
+/** Which obligation date the table's date column shows. */
+export type DateColumn = "filingDue" | "periodEnd";
+
+function dateOf(r: ListedWorkflow, column: DateColumn): Date | null {
+  return column === "periodEnd" ? r.obligation.periodEnd : r.obligation.filingDueDate;
+}
 
 export function WorkflowTable({
   rows,
   slug,
   showFye,
+  dateColumn,
 }: {
   rows: ListedWorkflow[];
   slug: string;
   showFye: boolean;
+  dateColumn: DateColumn;
 }) {
-  const { sorted, sortBy, sortDir, toggle } = useSort(rows, "filingDue", ACCESSORS);
+  const dateLabel = dateColumn === "periodEnd" ? "Period ending" : "Filing due";
+  const accessors: Record<string, (r: ListedWorkflow) => SortValue> = {
+    client: (r) => r.client.legalName,
+    type: (r) => filingTypeLabel(r.obligation.filingType, r.client.incorporationJurisdiction),
+    fye: (r) => r.client.fiscalYearEnd.getTime(),
+    date: (r) => dateOf(r, dateColumn)?.getTime() ?? null,
+    status: (r) => r.status,
+    updated: (r) => r.updatedAt.getTime(),
+  };
+  const { sorted, sortBy, sortDir, toggle } = useSort(rows, "date", accessors);
   const columns = showFye ? 6 : 5;
 
   return (
@@ -46,7 +55,7 @@ export function WorkflowTable({
             {showFye && (
               <SortableTh label="Fiscal year end" sortKey="fye" sortBy={sortBy} sortDir={sortDir} onToggle={toggle} />
             )}
-            <SortableTh label="Filing due" sortKey="filingDue" sortBy={sortBy} sortDir={sortDir} onToggle={toggle} />
+            <SortableTh label={dateLabel} sortKey="date" sortBy={sortBy} sortDir={sortDir} onToggle={toggle} />
             <SortableTh label="Status" sortKey="status" sortBy={sortBy} sortDir={sortDir} onToggle={toggle} />
             <SortableTh label="Updated" sortKey="updated" sortBy={sortBy} sortDir={sortDir} onToggle={toggle} />
           </tr>
@@ -66,7 +75,6 @@ export function WorkflowTable({
                   href={`/${slug}/${r.obligationId}`}
                   className="text-fg hover:text-primary hover:underline"
                 >
-                  {r.client.fileNumber ? `${r.client.fileNumber} — ` : ""}
                   {r.client.legalName}
                 </Link>
               </td>
@@ -74,7 +82,7 @@ export function WorkflowTable({
                 {filingTypeLabel(r.obligation.filingType, r.client.incorporationJurisdiction)}
               </td>
               {showFye && <td className="px-3 py-2 text-fg-muted">{formatUTC(r.client.fiscalYearEnd)}</td>}
-              <td className="px-3 py-2 text-fg-muted">{formatUTC(r.obligation.filingDueDate)}</td>
+              <td className="px-3 py-2 text-fg-muted">{formatUTC(dateOf(r, dateColumn))}</td>
               <td className="px-3 py-2 text-fg">
                 <span className="rounded-full bg-bg-subtle px-2 py-0.5 text-xs">{r.status}</span>
               </td>
