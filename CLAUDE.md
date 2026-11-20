@@ -36,6 +36,7 @@ Next.js 15 (App Router) + React 19 + TypeScript + Prisma 6 + SQLite + NextAuth 4
 - `npm run backfill-fye` and `npm run dedup-obligations` are manual maintenance scripts (dry-run by default, snapshot first, idempotent). Deploy the current code before running them — the repair derives dates from the rules.
 
 ## TODO / next steps (as of 2026-08-16)
+- [ ] Remove Payroll Remittance rows from any live DB (payroll remittances are no longer generated). Step-by-step runbook: `docs/runbooks/payroll-remittance-removal.md`. Dry run first; apply only with the user's approval.
 - [ ] Run `npm run migrate-multi-entity` on any production DB once to backfill jurisdiction codes / remitter renames / ProvincialAnnualReturn and reconcile invalid pending rows (takes a backup first).
 - [ ] Run `npm run dedup-obligations` then `npm run backfill-fye -- --apply --past-months=13` on any production DB whose schedule predates the month-end FYE fix (see README "Schedule maintenance" for the order).
 - [ ] Consider weekend/holiday adjustment and an automated test suite for `compliance-rules.ts` / `obligation-matrix.ts`.

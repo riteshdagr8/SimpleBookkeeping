@@ -257,6 +257,9 @@ npm run remove-payroll-remittance -- --apply               # delete rows with no
 npm run remove-payroll-remittance -- --apply --include-worked  # also delete rows with recorded work
 ```
 
+For step-by-step instructions on running this against a live database, see
+`docs/runbooks/payroll-remittance-removal.md`.
+
 A row with recorded work (filed, status moved on, checklist ticked, values entered,
 notes, or a client interaction) is kept and listed unless `--include-worked` is given.
 
