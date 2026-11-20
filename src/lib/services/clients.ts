@@ -215,14 +215,22 @@ export async function updateClient(
   const clean: Prisma.ClientUpdateInput = Object.fromEntries(
     Object.entries(data).filter(([, v]) => v !== undefined)
   ) as Prisma.ClientUpdateInput;
-  const client = await prisma.client.update({
-    where: { id },
-    data: clean,
-    include: {
-      folderChecklist: { orderBy: { itemName: "asc" } },
-      historicalReviews: { orderBy: [{ fiscalYear: "desc" }, { filingType: "asc" }] },
-    },
-  });
+  let client;
+  try {
+    client = await prisma.client.update({
+      where: { id },
+      data: clean,
+      include: {
+        folderChecklist: { orderBy: { itemName: "asc" } },
+        historicalReviews: { orderBy: [{ fiscalYear: "desc" }, { filingType: "asc" }] },
+      },
+    });
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("Unique constraint") && e.message.includes("fileNumber")) {
+      throw new Error(`File number "${input.fileNumber ?? ""}" is already in use.`);
+    }
+    throw e;
+  }
   await writeAudit({
     tenantId,
     actorId,

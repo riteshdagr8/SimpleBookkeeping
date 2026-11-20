@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { writeAudit } from "@/lib/services/audit";
 import { FILING_TYPES, REVIEW_STATUSES } from "@/lib/review-status";
 
 export { FILING_TYPES, REVIEW_STATUSES };
@@ -50,11 +51,16 @@ export const reviewUpdateSchema = z.object({
 
 export type ReviewUpdate = z.infer<typeof reviewUpdateSchema>;
 
-export async function upsertReview(tenantId: string, clientId: string, input: ReviewUpdate) {
+export async function upsertReview(
+  tenantId: string,
+  actorId: string,
+  clientId: string,
+  input: ReviewUpdate
+) {
   const client = await prisma.client.findFirst({ where: { id: clientId, tenantId } });
   if (!client) return null;
   await ensureReviewRows(clientId, client.fiscalYearEnd, client.reviewYears);
-  return prisma.historicalReview.upsert({
+  const saved = await prisma.historicalReview.upsert({
     where: {
       clientId_fiscalYear_filingType: {
         clientId,
@@ -71,4 +77,13 @@ export async function upsertReview(tenantId: string, clientId: string, input: Re
       notes: input.notes ?? null,
     },
   });
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "REVIEW_UPDATED",
+    entity: "Client",
+    entityId: clientId,
+    metadata: { fiscalYear: input.fiscalYear, filingType: input.filingType, status: input.status },
+  });
+  return saved;
 }

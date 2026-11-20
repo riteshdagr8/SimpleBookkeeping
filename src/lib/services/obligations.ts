@@ -189,12 +189,10 @@ export function buildScheduleRows(
   // month-end, so the period closes on the last day of the FYE month. NOTE:
   // getUTCMonth() is 0-based while utc() takes a 1-based month, hence +2.
   const fyeEnd = utc(fye.getUTCFullYear(), fye.getUTCMonth() + 2, 0);
-  const fyeStart = (() => {
-    const s = new Date(fyeEnd);
-    s.setUTCMonth(s.getUTCMonth() - 12);
-    s.setUTCDate(s.getUTCDate() + 1);
-    return s;
-  })();
+  // The period starts on the 1st of the month after the prior year-end's month.
+  // Built from the calendar directly: setUTCMonth(-12) overflows on Feb 29 (a
+  // leap-year FYE would start Mar 2 instead of Mar 1).
+  const fyeStart = utc(fye.getUTCFullYear() - 1, fye.getUTCMonth() + 2, 1);
 
   // ---- Income tax (exactly one, by entity type) ----
   const incomeType = incomeTaxFilingType(client.entityType);
@@ -673,7 +671,10 @@ export async function reconcilePendingObligations(
 
   for (const row of existing) {
     if (!validTypes.has(row.filingType)) {
-      deletions.push({ id: row.id, filingType: row.filingType });
+      // Past-due rows are history: a repair pass may correct them but never
+      // deletes them, even when their filing type no longer applies.
+      const isPast = !!row.filingDueDate && row.filingDueDate.getTime() < today.getTime();
+      if (!isPast) deletions.push({ id: row.id, filingType: row.filingType });
       continue;
     }
     const best = matchDesired(row, desired, used, existing);

@@ -177,8 +177,8 @@ export function WorkflowEditor({
                 <label className="block text-sm font-medium text-fg">{f.label}</label>
                 <input
                   type={f.type === "date" ? "date" : f.type === "number" ? "number" : "text"}
-                  inputMode={f.type === "number" ? "decimal" : undefined}
-                  step={f.type === "number" ? "0.01" : undefined}
+                  inputMode={f.type === "number" ? (f.integer ? "numeric" : "decimal") : undefined}
+                  step={f.type === "number" ? (f.integer ? "1" : "0.01") : undefined}
                   value={(() => {
                     const v = fields[f.key];
                     if (v === null || v === undefined) return "";

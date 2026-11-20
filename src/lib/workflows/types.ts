@@ -32,6 +32,8 @@ export interface WorkflowField {
   key: string;
   label: string;
   type: WorkflowFieldType;
+  /** For number fields: the value must be a whole number (the DB column is Int). */
+  integer?: boolean;
   /** Optional hint shown below the field. */
   hint?: string;
 }

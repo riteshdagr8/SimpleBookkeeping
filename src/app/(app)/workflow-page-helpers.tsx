@@ -48,7 +48,11 @@ export async function buildWorkflowListProps(
   });
 
   // Build the status list for the filter (initial + all statusByStep entries).
-  const allStatuses = Array.from(new Set([config.initialStatus, ...config.statusByStep]));
+  // WaitingOnClient is set by the "waiting on client" checkbox, not by a step,
+  // so it has to be added here or waiting rows can't be filtered for.
+  const allStatuses = Array.from(
+    new Set([config.initialStatus, ...config.statusByStep, "WaitingOnClient"])
+  );
 
   // Distinct provinces/territories among active clients — used for the Province
   // filter on the Provincial AR page.

@@ -57,8 +57,11 @@ export function ClientsList({ clients, userRole }: Props) {
   const [busy, setBusy] = useState(false);
 
   const statusParam = params.get("status");
-  const filter: ClientFilter =
+  // Staff can't view inactive clients (the API returns 404 for them), so the
+  // list is locked to active clients for them.
+  const requestedFilter: ClientFilter =
     statusParam === "inactive" ? "inactive" : statusParam === "all" ? "all" : "active";
+  const filter: ClientFilter = userRole === "Admin" ? requestedFilter : "active";
   const visible =
     filter === "all"
       ? clients
@@ -110,8 +113,8 @@ export function ClientsList({ clients, userRole }: Props) {
             className="mt-1 block rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-fg"
           >
             <option value="active">Active Clients</option>
-            <option value="inactive">Inactive Clients</option>
-            <option value="all">All Clients</option>
+            {userRole === "Admin" && <option value="inactive">Inactive Clients</option>}
+            {userRole === "Admin" && <option value="all">All Clients</option>}
           </select>
         </label>
       </div>

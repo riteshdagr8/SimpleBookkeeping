@@ -66,7 +66,7 @@ export const WORKFLOW_CONFIGS: Record<string, WorkflowConfig> = {
       },
     ],
     fields: [
-      { key: "employeeCount", label: "Number of employees", type: "number" },
+      { key: "employeeCount", label: "Number of employees", type: "number", integer: true },
       { key: "totalRemittance", label: "Total remittance", type: "number" },
     ],
   },

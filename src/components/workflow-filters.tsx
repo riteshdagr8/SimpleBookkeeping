@@ -90,6 +90,7 @@ export function WorkflowFilters({ clients, statuses, slug, provinces }: Props) {
         <div>
           <label className="block text-xs font-medium text-fg-muted">Client</label>
           <select
+            key={params.get("clientId") ?? ""}
             defaultValue={params.get("clientId") ?? ""}
             onChange={(e) => update("clientId", e.target.value)}
             className="mt-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-fg"
@@ -107,6 +108,7 @@ export function WorkflowFilters({ clients, statuses, slug, provinces }: Props) {
           <label className="block text-xs font-medium text-fg-muted">From</label>
           <input
             type="date"
+            key={params.get("from") ?? ""}
             defaultValue={params.get("from") ?? ""}
             onChange={(e) => update("from", e.target.value)}
             className="mt-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-fg"
@@ -116,6 +118,7 @@ export function WorkflowFilters({ clients, statuses, slug, provinces }: Props) {
           <label className="block text-xs font-medium text-fg-muted">To</label>
           <input
             type="date"
+            key={params.get("to") ?? ""}
             defaultValue={params.get("to") ?? ""}
             onChange={(e) => update("to", e.target.value)}
             className="mt-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-fg"
@@ -124,6 +127,7 @@ export function WorkflowFilters({ clients, statuses, slug, provinces }: Props) {
         <div>
           <label className="block text-xs font-medium text-fg-muted">Status</label>
           <select
+            key={params.get("status") ?? "Pending"}
             defaultValue={params.get("status") ?? "Pending"}
             onChange={(e) => update("status", e.target.value)}
             className="mt-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-fg"

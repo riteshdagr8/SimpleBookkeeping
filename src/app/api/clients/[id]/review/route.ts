@@ -35,7 +35,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   // Two payload shapes: a review cell update, OR a reviewComplete toggle.
   const reviewParsed = putSchema.safeParse(body);
   if (reviewParsed.success) {
-    const r = await upsertReview(user.tenantId, id, reviewParsed.data);
+    const r = await upsertReview(user.tenantId, user.id, id, reviewParsed.data);
     if (!r) return NextResponse.json({ error: "Not found" }, { status: 404 });
     return NextResponse.json({ review: r });
   }

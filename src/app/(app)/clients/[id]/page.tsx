@@ -35,6 +35,7 @@ function toInitial(c: NonNullable<Awaited<ReturnType<typeof getClient>>>): Clien
     gstYearEnd: c.gstYearEnd ?? "",
     folderPath: c.folderPath ?? "",
     qbPassword: "",
+    hasQbPassword: !!c.qbPasswordEncrypted,
     onboardingStatus: c.onboardingStatus ?? "In Progress",
     hstApplicable: c.hstApplicable,
     hstFrequency: (c.hstFrequency as "" | "Monthly" | "Quarterly" | "Annual" | "SelfEmployed") ?? "",

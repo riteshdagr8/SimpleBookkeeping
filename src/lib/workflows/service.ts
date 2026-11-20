@@ -32,6 +32,18 @@ function serializeChecklist(c: ChecklistState): string {
 }
 
 /**
+ * Compare a field value with its stored value. Dates are compared by time:
+ * `===` on two Date objects is always false, which made the no-op guard in
+ * updateWorkflow never fire for date fields.
+ */
+function sameFieldValue(a: unknown, b: unknown): boolean {
+  if (a instanceof Date || b instanceof Date) {
+    return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
+  }
+  return a === b;
+}
+
+/**
  * Map a workflow type to its Prisma model accessor. Each branch returns the
  * same shape so the caller can treat the row uniformly.
  */
@@ -43,6 +55,7 @@ export function modelByType(type: WorkflowType): {
     update: Record<string, unknown>;
   }) => Promise<unknown>;
   findFirst: (args: { where: Record<string, unknown> }) => Promise<unknown>;
+  findMany: (args: { where: Record<string, unknown> }) => Promise<unknown[]>;
 } {
   // Prisma's generated client types each model separately. We access via the
   // dynamic `prisma[modelName]` API and return a small facade.
@@ -59,6 +72,7 @@ export function modelByType(type: WorkflowType): {
       update: Record<string, unknown>;
     }) => Promise<unknown>;
     findFirst: (args: { where: Record<string, unknown> }) => Promise<unknown>;
+    findMany: (args: { where: Record<string, unknown> }) => Promise<unknown[]>;
   };
   return m;
 }
@@ -143,7 +157,7 @@ export async function updateWorkflow(
   const existing = (await model.findUnique({ where: { obligationId } })) as AnyWorkflowRow | null;
   if (existing) {
     const existingFields = config.fields.every(
-      (f) => fieldData[f.key] === (existing[f.key] ?? null)
+      (f) => sameFieldValue(fieldData[f.key], existing[f.key] ?? null)
     );
     if (
       existing.status === newStatus &&
@@ -258,13 +272,10 @@ export async function listWorkflows(
   // Fetch the workflow rows for these obligations.
   const ids = filtered.map((o) => o.id);
   const model = modelByType(type);
-  const rowsRaw = await Promise.all(
-    ids.map((id) => model.findFirst({ where: { obligationId: id } }))
-  );
+  // One query for all rows, instead of one findFirst per obligation.
+  const rowsRaw = (await model.findMany({ where: { obligationId: { in: ids } } })) as AnyWorkflowRow[];
   const rowsByObligation = new Map<string, AnyWorkflowRow>();
-  for (const r of rowsRaw) {
-    if (r) rowsByObligation.set((r as AnyWorkflowRow).obligationId, r as AnyWorkflowRow);
-  }
+  for (const r of rowsRaw) rowsByObligation.set(r.obligationId, r);
 
   const out: ListedWorkflow[] = [];
   for (const o of filtered) {

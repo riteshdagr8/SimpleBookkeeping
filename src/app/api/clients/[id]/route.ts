@@ -18,8 +18,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  // requireUser() redirects on failure by throwing; keep it outside the try so
+  // the redirect isn't swallowed and turned into a 500.
+  const user = await requireUser();
   try {
-    const user = await requireUser();
     const { id } = await params;
     const body = await req.json().catch(() => null);
     const parsed = clientInputSchema.safeParse(body);
@@ -66,6 +68,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           affectedTypes: [...byType.entries()].map(([type, count]) => ({ type, count })),
         });
       }
+    }
+
+    // Reject a review-locked year-count change before anything is deleted, so a
+    // failed save can't leave the schedule purged while the client is unchanged.
+    if (existing.reviewComplete && parsed.data.reviewYears !== undefined && parsed.data.reviewYears !== existing.reviewYears) {
+      return NextResponse.json(
+        { error: "Review is complete — unmark 'Review complete' before changing the year count." },
+        { status: 400 }
+      );
     }
 
     // Confirmed (or nothing invalidated): purge invalid future-pending rows, then save.

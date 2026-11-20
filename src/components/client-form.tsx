@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { InfoDialog } from "@/components/info-dialog";
@@ -24,7 +24,10 @@ export interface ClientFormInitial {
   secondaryEmail: string;
   gstYearEnd: string;
   folderPath: string;
+  /** Typed value only; the stored password is never loaded into the form. */
   qbPassword: string;
+  /** Whether a QuickBooks password is stored (controls the masked placeholder and Reveal). */
+  hasQbPassword: boolean;
   onboardingStatus: string;
   hstApplicable: boolean;
   hstFrequency: "" | "Monthly" | "Quarterly" | "Annual" | "SelfEmployed";
@@ -54,6 +57,7 @@ export const emptyClient: ClientFormInitial = {
   gstYearEnd: "",
   folderPath: "",
   qbPassword: "",
+  hasQbPassword: false,
   onboardingStatus: "In Progress",
   hstApplicable: false,
   hstFrequency: "",
@@ -117,12 +121,15 @@ export function ClientForm({
   const [savedOpen, setSavedOpen] = useState(justSaved);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showQb, setShowQb] = useState(false);
-  const [qbLoading, setQbLoading] = useState(!!initial.id);
-  const [qbLoaded, setQbLoaded] = useState<string | null>(null);
-  // True only when the user manually edits the QuickBooks password field. The
-  // auto-reveal populates qbPassword without marking dirty, so a routine save
-  // (or a failed reveal) never overwrites/clears the stored encrypted value.
+  // The stored QuickBooks password is never loaded with the page. It is fetched
+  // only when the user clicks Reveal, and hidden again after 20 s. Each reveal
+  // is audited on the server.
+  const [qbRevealed, setQbRevealed] = useState<string | null>(null);
+  const [qbRevealing, setQbRevealing] = useState(false);
+  const [qbError, setQbError] = useState<string | null>(null);
+  const qbTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True only when the user types into the QuickBooks password field. A save
+  // without edits omits qbPassword, so the stored encrypted value is untouched.
   const [qbDirty, setQbDirty] = useState(false);
   const [inactiveConfirm, setInactiveConfirm] = useState(false);
   // Set when the server reports that this entity/jurisdiction change would
@@ -142,21 +149,39 @@ export function ClientForm({
   }, [initial.id, initial.fileNumber, initial.legalName, initial.fiscalYearEnd, initial.incorporationDate, initial.contactName]);
 
   useEffect(() => {
+    return () => {
+      if (qbTimerRef.current) clearTimeout(qbTimerRef.current);
+    };
+  }, []);
+
+  function hideQb() {
+    setQbRevealed(null);
+    if (qbTimerRef.current) {
+      clearTimeout(qbTimerRef.current);
+      qbTimerRef.current = null;
+    }
+  }
+
+  async function toggleQbReveal() {
+    if (qbRevealed !== null) {
+      hideQb();
+      return;
+    }
     if (!initial.id) return;
-    setQbLoading(true);
-    fetch(`/api/me/qb-secret/${initial.id}`, { method: "POST" })
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => {
-        if (data && typeof data.password === "string") {
-          setQbLoaded(data.password || null);
-          if (data.password) {
-            setForm((f) => ({ ...f, qbPassword: data.password }));
-          }
-        }
-      })
-      .catch(() => {})
-      .finally(() => setQbLoading(false));
-  }, [initial.id]);
+    setQbRevealing(true);
+    setQbError(null);
+    try {
+      const res = await fetch(`/api/me/qb-secret/${initial.id}`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Failed to reveal");
+      setQbRevealed(typeof data.password === "string" ? data.password : "");
+      qbTimerRef.current = setTimeout(hideQb, 20_000);
+    } catch (e) {
+      setQbError(e instanceof Error ? e.message : "Failed to reveal");
+    } finally {
+      setQbRevealing(false);
+    }
+  }
 
   function set<K extends keyof ClientFormInitial>(key: K, value: ClientFormInitial[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -311,28 +336,30 @@ export function ClientForm({
           <label className="block text-sm font-medium text-fg">QuickBooks password</label>
           <div className="mt-1 flex items-center gap-2">
             <input
-              type={showQb ? "text" : "password"}
-              value={qbLoaded !== null ? qbLoaded : form.qbPassword}
+              type={qbRevealed !== null ? "text" : "password"}
+              value={qbDirty ? form.qbPassword : (qbRevealed ?? "")}
               autoComplete="new-password"
-              disabled={qbLoading}
-              placeholder={qbLoading ? "Loading..." : ""}
+              placeholder={
+                qbRevealing ? "Loading..." : initial.hasQbPassword && !qbDirty ? "•••••••• (saved)" : ""
+              }
               onChange={(e) => {
-                setQbLoaded(e.target.value);
+                hideQb();
                 set("qbPassword", e.target.value);
                 setQbDirty(true);
               }}
-              className="block w-full rounded-md border border-border bg-bg-subtle px-3 py-2 text-fg outline-none focus:border-ring focus:ring-2 focus:ring-ring/30 disabled:opacity-50"
+              className="block w-full rounded-md border border-border bg-bg-subtle px-3 py-2 text-fg outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
             />
             <button
               type="button"
-              onClick={() => !qbLoading && setShowQb((s) => !s)}
-              disabled={qbLoading}
-              title={showQb ? "Hide password" : "Show password"}
+              onClick={toggleQbReveal}
+              disabled={qbRevealing || qbDirty || !initial.hasQbPassword}
+              title={qbRevealed !== null ? "Hide password" : "Reveal stored password"}
               className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-bg-subtle text-fg hover:bg-surface disabled:opacity-50"
             >
-              {showQb ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {qbRevealed !== null ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
+          {qbError && <p className="mt-1 text-xs text-danger">{qbError}</p>}
         </div>
       </div>
 
@@ -461,7 +488,7 @@ export function ClientForm({
       <div className="flex justify-end gap-2">
         <button
           type="submit"
-          disabled={loading || qbLoading}
+          disabled={loading}
           className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-fg hover:opacity-90 disabled:opacity-50"
         >
           {loading ? "Saving..." : submitLabel}

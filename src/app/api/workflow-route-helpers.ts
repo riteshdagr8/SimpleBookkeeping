@@ -5,7 +5,36 @@ import { prisma } from "@/lib/prisma";
 import { updateWorkflow, modelByType } from "@/lib/workflows/service";
 import { openInteraction, closeInteraction } from "@/lib/workflows/interactions";
 import { getConfigByType } from "@/lib/workflows/configs";
-import type { WorkflowType } from "@/lib/workflows/types";
+import type { WorkflowField, WorkflowType } from "@/lib/workflows/types";
+
+/**
+ * Check submitted field values against their declared types. Returns an error
+ * message for the first invalid value, or null when all are acceptable.
+ * Empty values are allowed (they clear the field).
+ */
+function validateFieldValues(
+  fields: WorkflowField[],
+  values: Record<string, string | number | null>
+): string | null {
+  for (const f of fields) {
+    const v = values[f.key];
+    if (v === null || v === undefined || v === "") continue;
+    if (f.type === "date") {
+      const d = new Date(String(v));
+      if (Number.isNaN(d.getTime())) return `${f.label} is not a valid date`;
+      if (f.key === "filingDate") {
+        const endOfToday = new Date();
+        endOfToday.setUTCHours(23, 59, 59, 999);
+        if (d.getTime() > endOfToday.getTime()) return "Filing date cannot be in the future";
+      }
+    } else if (f.type === "number") {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return `${f.label} must be a number`;
+      if (f.integer && !Number.isInteger(n)) return `${f.label} must be a whole number`;
+    }
+  }
+  return null;
+}
 
 /**
  * Build a PUT handler for a workflow type. Validates the body, scopes the
@@ -52,18 +81,9 @@ export function buildWorkflowPutHandler(type: WorkflowType) {
       return NextResponse.json({ error: "Wrong workflow for filing type" }, { status: 400 });
     }
 
-    // Validate that any filing date is not in the future.
-    const filingDateStr = parsed.data.fields.filingDate;
-    if (filingDateStr != null && filingDateStr !== "") {
-      const fd = new Date(String(filingDateStr));
-      const today = new Date();
-      today.setUTCHours(23, 59, 59, 999);
-      if (fd.getTime() > today.getTime()) {
-        return NextResponse.json(
-          { error: "Filing date cannot be in the future" },
-          { status: 400 }
-        );
-      }
+    const fieldError = validateFieldValues(config.fields, parsed.data.fields);
+    if (fieldError) {
+      return NextResponse.json({ error: fieldError }, { status: 400 });
     }
 
     const updated = await updateWorkflow(
@@ -88,7 +108,7 @@ export function buildWorkflowPutHandler(type: WorkflowType) {
         user.tenantId,
         config.interactionType,
         obligationId,
-        parsed.data.interactionNote ?? ""
+        parsed.data.interactionNote
       );
     }
 
@@ -112,9 +132,12 @@ export function buildInteractionCloseHandler(type: WorkflowType) {
 
     const obligation = await prisma.filingObligation.findFirst({
       where: { id: obligationId, client: { tenantId: user.tenantId } },
-      select: { id: true },
+      select: { id: true, filingType: true },
     });
     if (!obligation) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!config.filingTypes.includes(obligation.filingType)) {
+      return NextResponse.json({ error: "Wrong workflow for filing type" }, { status: 400 });
+    }
 
     const closed = await closeInteraction(config.interactionType, obligationId);
 

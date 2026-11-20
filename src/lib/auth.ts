@@ -5,9 +5,16 @@ import { getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
-import { compare } from "bcryptjs";
+import { compare, hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/services/audit";
+
+// Computed once on first use, at the same cost factor as real passwords.
+let dummyHashPromise: Promise<string> | null = null;
+function getDummyHash(): Promise<string> {
+  dummyHashPromise ??= hash("timing-equalisation-dummy", 12);
+  return dummyHashPromise;
+}
 
 declare module "next-auth" {
   interface Session {
@@ -55,11 +62,15 @@ export const authOptions: NextAuthOptions = {
         const user = await prisma.user.findUnique({
           where: { email },
         });
+        // Unknown and inactive accounts still run a bcrypt compare, so the
+        // response time doesn't reveal whether an email is registered.
         if (!user) {
+          await compare(String(creds.password), await getDummyHash());
           console.warn(`[auth] Failed login attempt for unknown email: ${email}`);
           return null;
         }
         if (!user.active) {
+          await compare(String(creds.password), await getDummyHash());
           console.warn(`[auth] Failed login attempt for inactive user: ${email}`);
           return null;
         }
