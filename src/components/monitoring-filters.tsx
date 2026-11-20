@@ -15,11 +15,11 @@ function utcDateAsLocal(d: Date): Date {
 
 type Row = { id: string; filingType: string; filingDueDate: Date | null; status: string; client: { id: string; fileNumber: string | null; legalName: string } };
 export function MonitoringFilters({ overdue, dueThisWeek, waiting }: { overdue: Row[]; dueThisWeek: Row[]; waiting: Row[] }) {
-  const [filter, setFilter] = useState<"All" | "PayrollProcessing" | "PayrollRemittance">("All");
+  const [filter, setFilter] = useState<"All" | "PayrollProcessing">("All");
   const visible = (rows: Row[]) => filter === "All" ? rows : rows.filter((r) => r.filingType === filter);
   return <>
     <div className="inline-flex rounded-md border border-border bg-surface p-0.5" role="group" aria-label="Obligation type filter">
-      {([["All", "All"], ["PayrollProcessing", "Payroll Processing"], ["PayrollRemittance", "Payroll Remittances"]] as const).map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={`rounded px-3 py-1 text-xs ${filter === v ? "bg-primary text-white" : "text-fg-muted"}`}>{l}</button>)}
+      {([["All", "All"], ["PayrollProcessing", "Payroll Processing"]] as const).map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} className={`rounded px-3 py-1 text-xs ${filter === v ? "bg-primary text-white" : "text-fg-muted"}`}>{l}</button>)}
     </div>
     <Section title="Overdue" rows={visible(overdue)} empty="Nothing overdue. Good." border="border-danger/30" />
     <Section title="Due this week" rows={visible(dueThisWeek)} empty="No deadlines in the next 7 days." border="border-border" />

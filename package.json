@@ -16,6 +16,7 @@
     "migrate-multi-entity": "tsx scripts/migrate-multi-entity.ts",
     "backfill-fye": "tsx scripts/backfill-fye-last-day.ts",
     "dedup-obligations": "tsx scripts/dedup-obligations.ts",
+    "remove-payroll-remittance": "tsx scripts/remove-payroll-remittance.ts",
     "delete-obligations": "tsx scripts/delete-client-obligations.ts"
   },
   "prisma": {

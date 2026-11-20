@@ -5,7 +5,6 @@ import {
   federalAnnualReturn,
   infoReturnDeadlines,
   nextAnniversary,
-  payrollRemittancePeriodsRolling,
   payrollRunPeriods,
   provincialAnnualReturnDeadline,
   salesTaxPeriods,
@@ -28,7 +27,6 @@ import { OBLIGATION_STATUS_VALUES } from "@/lib/obligation-status";
 const OBLIGATION_STATUSES = OBLIGATION_STATUS_VALUES;
 
 const HST_FREQUENCIES = ["Monthly", "Quarterly", "Annual", "SelfEmployed"] as const;
-const REMITTER_TYPES = ["Monthly", "Quarterly"] as const;
 const PAYROLL_FREQUENCIES = ["Weekly", "Bi-Weekly", "Semi-Monthly", "Monthly"] as const;
 
 const SALES_TAX_TYPES = ["HST", "GST", "GSTQST", "PST", "RST"] as const;
@@ -351,27 +349,6 @@ export function buildScheduleRows(
           status: "Pending",
         });
       }
-    }
-  }
-
-  // ---- Payroll remittances (Monthly → 15th of following month; Quarterly → 15th after quarter-end) ----
-  if (
-    client.payrollApplicable &&
-    client.remitterType &&
-    REMITTER_TYPES.includes(client.remitterType as (typeof REMITTER_TYPES)[number])
-  ) {
-    const remitter = client.remitterType as (typeof REMITTER_TYPES)[number];
-    const periods = payrollRemittancePeriodsRolling(windowStart, remitter);
-    for (const p of periods) {
-      rows.push({
-        clientId,
-        filingType: "PayrollRemittance",
-        periodStart: p.periodStart,
-        periodEnd: p.periodEnd,
-        filingDueDate: p.filingDue,
-        paymentDueDate: p.paymentDue,
-        status: "Pending",
-      });
     }
   }
 

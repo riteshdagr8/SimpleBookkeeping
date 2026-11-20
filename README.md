@@ -122,7 +122,7 @@ default tenant and demo users.
   self-employed), T5013 (partnership), and T3 (trust) returns.
 - **Sales Tax** (`/sales-tax`) — GST/HST, GST, GST/QST, and GST + PST/RST
   obligations selected by jurisdiction.
-- **Payroll** (`/payroll`) — payroll remittance filings.
+- **Payroll** (`/payroll`) — payroll processing runs, driven by each client's pay frequency. Payroll remittances are no longer scheduled; see `npm run remove-payroll-remittance` to clear existing rows.
 - **Federal AR** (`/federal-ar`) — federal annual returns.
 - **Provincial AR** (`/provincial-ar`) — provincial/territorial registry
   annual returns for all 13 regions.
@@ -242,7 +242,22 @@ a due date but cover different periods (e.g. a monthly and a quarterly return
 landing on the same deadline) are left alone. Any row with a workflow row or
 client interaction attached is **skipped**, never deleted.
 
-### Recommended order on an existing database
+#### Payroll remittance removal (`npm run remove-payroll-remittance`)
+
+Payroll remittances are no longer generated. This script deletes the remittance
+rows already on the schedule. It is dry-run by default and snapshots the database
+before any delete.
+
+```bash
+npm run remove-payroll-remittance                          # dry run, lists every row
+npm run remove-payroll-remittance -- --apply               # delete rows with no recorded work
+npm run remove-payroll-remittance -- --apply --include-worked  # also delete rows with recorded work
+```
+
+A row with recorded work (filed, status moved on, checklist ticked, values entered,
+notes, or a client interaction) is kept and listed unless `--include-worked` is given.
+
+## Recommended order on an existing database
 
 ```bash
 stop.cmd                                        # 1. stop the app
@@ -273,6 +288,7 @@ backfill to match against.
 | `npm run restore` | restore a backup (interactive) |
 | `npm run backfill-fye` | move client fiscal year-ends to month-end, and repair affected obligation dates (see below) |
 | `npm run dedup-obligations` | collapse duplicate obligation rows (see below) |
+| `npm run remove-payroll-remittance` | delete Payroll Remittance schedule rows (dry run by default; see below) |
 | `start.cmd` / `./start.sh` | detached dev server (background, log files) |
 | `stop.cmd` / `./stop.sh` | stop the detached dev server |
 
