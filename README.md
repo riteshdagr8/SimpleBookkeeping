@@ -295,6 +295,7 @@ backfill to match against.
 | `npm run backfill-fye` | move client fiscal year-ends to month-end, and repair affected obligation dates (see below) |
 | `npm run dedup-obligations` | collapse duplicate obligation rows (see below) |
 | `npm run remove-payroll-remittance` | delete Payroll Remittance schedule rows (dry run by default; see below) |
+| `npm run realign-payroll-cycles` | put Weekly and Bi-Weekly payroll runs on the firm-wide Friday cycle (dry run by default; see `docs/runbooks/payroll-cycle-realignment.md`) |
 | `start.cmd` / `./start.sh` | detached dev server (background, log files) |
 | `stop.cmd` / `./stop.sh` | stop the detached dev server |
 

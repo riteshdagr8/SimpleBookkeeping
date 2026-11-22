@@ -4,6 +4,7 @@ import { clientInputSchema, getClient, updateClient, deleteClient } from "@/lib/
 import { findInvalidPendingObligations } from "@/lib/services/obligations";
 import { prisma } from "@/lib/prisma";
 import type { ComplianceConfig } from "@/lib/obligation-matrix";
+import { joinPayFrequencies } from "@/lib/payroll-frequency";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
@@ -55,7 +56,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         hstApplicable: parsed.data.hstApplicable ?? existing.hstApplicable,
         hstFrequency: parsed.data.hstFrequency ?? existing.hstFrequency,
         payrollApplicable: parsed.data.payrollApplicable ?? existing.payrollApplicable,
-        payrollFrequency: parsed.data.payrollFrequency ?? existing.payrollFrequency,
+        payrollFrequency:
+          parsed.data.payrollFrequencies !== undefined
+            ? joinPayFrequencies(parsed.data.payrollFrequencies)
+            : existing.payrollFrequency,
         remitterType: parsed.data.remitterType ?? existing.remitterType,
       };
       const invalid = await findInvalidPendingObligations(id, newConfig);
@@ -88,7 +92,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         hstApplicable: parsed.data.hstApplicable ?? existing.hstApplicable,
         hstFrequency: parsed.data.hstFrequency ?? existing.hstFrequency,
         payrollApplicable: parsed.data.payrollApplicable ?? existing.payrollApplicable,
-        payrollFrequency: parsed.data.payrollFrequency ?? existing.payrollFrequency,
+        payrollFrequency:
+          parsed.data.payrollFrequencies !== undefined
+            ? joinPayFrequencies(parsed.data.payrollFrequencies)
+            : existing.payrollFrequency,
         remitterType: parsed.data.remitterType ?? existing.remitterType,
       };
       const invalid = await findInvalidPendingObligations(id, newConfig);

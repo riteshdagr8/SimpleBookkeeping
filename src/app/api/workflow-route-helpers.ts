@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateWorkflow, modelByType } from "@/lib/workflows/service";
 import { openInteraction, closeInteraction } from "@/lib/workflows/interactions";
-import { getConfigByType } from "@/lib/workflows/configs";
+import { fieldsForFilingType, getConfigByType } from "@/lib/workflows/configs";
 import type { WorkflowField, WorkflowType } from "@/lib/workflows/types";
 
 /**
@@ -81,7 +81,10 @@ export function buildWorkflowPutHandler(type: WorkflowType) {
       return NextResponse.json({ error: "Wrong workflow for filing type" }, { status: 400 });
     }
 
-    const fieldError = validateFieldValues(config.fields, parsed.data.fields);
+    const fieldError = validateFieldValues(
+      fieldsForFilingType(config, obligation.filingType),
+      parsed.data.fields
+    );
     if (fieldError) {
       return NextResponse.json({ error: fieldError }, { status: 400 });
     }
@@ -149,7 +152,10 @@ export function buildInteractionCloseHandler(type: WorkflowType) {
       let checklist: Record<string, boolean> = {};
       try { const p = JSON.parse(row.checklist as string); if (p && typeof p === "object" && !Array.isArray(p)) checklist = p; } catch {}
       const fields: Record<string, string | number | null | undefined> = {};
-      for (const f of config.fields) {
+      // Obligation-stored fields (such as amount) are not sent back: leaving
+      // them out keeps updateWorkflow from clearing them.
+      for (const f of fieldsForFilingType(config, obligation.filingType)) {
+        if (f.storage === "obligation") continue;
         fields[f.key] = (row[f.key] as string | number | null | undefined) ?? null;
       }
       await updateWorkflow(user.tenantId, user.id, type, obligationId, {

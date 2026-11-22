@@ -6,7 +6,8 @@ import type {
   WorkflowField,
   WorkflowType,
 } from "./types";
-import { getConfigByType, WORKFLOW_CONFIGS } from "./configs";
+import { fieldsForFilingType, getConfigByType, WORKFLOW_CONFIGS } from "./configs";
+import { frequencyForPeriod } from "@/lib/payroll-frequency";
 import { deriveStatus } from "./status";
 
 type AnyWorkflowRow = {
@@ -121,16 +122,28 @@ export async function updateWorkflow(
   const config = getConfigByType(type);
   if (!config) throw new Error(`No workflow config for type ${type}`);
 
+  // The obligation scopes the request to the tenant and tells us which filing
+  // type's fields apply.
+  const obligation = await prisma.filingObligation.findFirst({
+    where: { id: obligationId, client: { tenantId } },
+    select: { id: true, clientId: true, filingType: true, amount: true },
+  });
+  if (!obligation) throw new Error("Obligation not found");
+
   // Look up the client (for the qbOnlinePayroll predicate).
   const client = await prisma.client.findFirst({
-    where: { id: (await prisma.filingObligation.findUnique({ where: { id: obligationId }, select: { clientId: true } }))!.clientId, tenantId },
+    where: { id: obligation.clientId, tenantId },
     select: { qbOnlinePayroll: true, id: true },
   });
   if (!client) throw new Error("Client not found");
 
-  // Coerce field values to the appropriate Prisma types.
+  const applicable = fieldsForFilingType(config, obligation.filingType);
+  const workflowFields = applicable.filter((f) => f.storage !== "obligation");
+  const obligationFields = applicable.filter((f) => f.storage === "obligation");
+
+  // Fields stored on the workflow row. Coerce values to the Prisma types.
   const fieldData: Record<string, unknown> = {};
-  for (const f of config.fields) {
+  for (const f of workflowFields) {
     const v = input.fields[f.key];
     if (v === undefined || v === null || v === "") {
       if (f.type === "date") fieldData[f.key] = null;
@@ -147,7 +160,25 @@ export async function updateWorkflow(
     }
   }
 
-  const newStatus = deriveStatus(input.checklist, config, { client, fields: fieldData }, input.waitingOnClient);
+  // Fields stored on the obligation. A key absent from the input is left
+  // alone, so callers that don't send it (such as the interaction close) can't
+  // clear it. A key sent as null clears it.
+  const obligationData: Record<string, unknown> = {};
+  for (const f of obligationFields) {
+    if (!(f.key in input.fields)) continue;
+    const v = input.fields[f.key];
+    obligationData[f.key] = v === undefined || v === null || v === "" ? null : Number(v);
+  }
+  const obligationChanged = Object.keys(obligationData).some(
+    (k) => obligationData[k] !== (obligation as unknown as Record<string, unknown>)[k]
+  );
+
+  const newStatus = deriveStatus(
+    input.checklist,
+    config,
+    { client, fields: { ...fieldData, ...obligationData } },
+    input.waitingOnClient
+  );
   const checklistJson = serializeChecklist(input.checklist);
 
   const model = modelByType(type);
@@ -156,16 +187,21 @@ export async function updateWorkflow(
   // updatedAt doesn't advance on no-op saves.
   const existing = (await model.findUnique({ where: { obligationId } })) as AnyWorkflowRow | null;
   if (existing) {
-    const existingFields = config.fields.every(
+    const existingFields = workflowFields.every(
       (f) => sameFieldValue(fieldData[f.key], existing[f.key] ?? null)
     );
     if (
       existing.status === newStatus &&
       existing.checklist === checklistJson &&
-      existingFields
+      existingFields &&
+      !obligationChanged
     ) {
       return existing;
     }
+  }
+
+  if (obligationChanged) {
+    await prisma.filingObligation.update({ where: { id: obligationId }, data: obligationData });
   }
 
   const updated = (await model.upsert({
@@ -207,6 +243,8 @@ export interface ListFilters {
   fyeMonth?: number;
   /** Client.hstFrequency: Monthly | Quarterly | Annual | SelfEmployed. */
   frequency?: string;
+  /** Pay frequency of a Payroll Processing row: Weekly | Bi-Weekly | Semi-Monthly | Monthly. */
+  payFrequency?: string;
   from?: Date;
   to?: Date;
   status?: string;
@@ -224,6 +262,7 @@ export interface ListedWorkflow {
     filingDueDate: Date | null;
     periodStart: Date | null;
     periodEnd: Date | null;
+    amount: number | null;
   };
   client: {
     id: string;
@@ -231,6 +270,7 @@ export interface ListedWorkflow {
     legalName: string;
     incorporationJurisdiction: string | null;
     fiscalYearEnd: Date;
+    incorporationDate: Date | null;
   };
   updatedAt: Date;
 }
@@ -259,8 +299,9 @@ export async function listWorkflows(
       filingDueDate: true,
       periodStart: true,
       periodEnd: true,
+      amount: true,
       clientId: true,
-      client: { select: { id: true, fileNumber: true, legalName: true, incorporationJurisdiction: true, fiscalYearEnd: true, hstFrequency: true, tenantId: true } },
+      client: { select: { id: true, fileNumber: true, legalName: true, incorporationJurisdiction: true, fiscalYearEnd: true, incorporationDate: true, hstFrequency: true, tenantId: true } },
     },
   });
 
@@ -271,6 +312,10 @@ export async function listWorkflows(
     if (nameNeedle && !o.client.legalName.toLowerCase().includes(nameNeedle)) return false;
     if (filters.fyeMonth && o.client.fiscalYearEnd.getUTCMonth() + 1 !== filters.fyeMonth) return false;
     if (filters.frequency && o.client.hstFrequency !== filters.frequency) return false;
+    if (filters.payFrequency) {
+      if (!o.periodStart || !o.periodEnd) return false;
+      if (frequencyForPeriod(o.periodStart, o.periodEnd) !== filters.payFrequency) return false;
+    }
     if (filters.from && o.filingDueDate && o.filingDueDate.getTime() < filters.from.getTime()) return false;
     if (filters.to && o.filingDueDate && o.filingDueDate.getTime() > filters.to.getTime()) return false;
     return true;
@@ -292,10 +337,12 @@ export async function listWorkflows(
     const status = row?.status ?? config.initialStatus;
     if (filters.status && filters.status !== status) continue;
     const fields: Record<string, string | number | null> = {};
-    if (row) {
-      for (const f of config.fields) {
-        fields[f.key] = (row[f.key] as string | number | null | undefined) ?? null;
-      }
+    for (const f of config.fields) {
+      // Obligation-stored fields (such as amount) come from the obligation.
+      const source = f.storage === "obligation"
+        ? (o as unknown as Record<string, unknown>)[f.key]
+        : row?.[f.key];
+      fields[f.key] = (source as string | number | null | undefined) ?? null;
     }
     out.push({
       id: row?.id ?? o.id,
@@ -309,12 +356,14 @@ export async function listWorkflows(
         filingDueDate: o.filingDueDate,
         periodStart: o.periodStart,
         periodEnd: o.periodEnd,
+        amount: o.amount,
       },
       client: {
         id: o.client.id,
         fileNumber: o.client.fileNumber,
         legalName: o.client.legalName,
         incorporationJurisdiction: o.client.incorporationJurisdiction,
+        incorporationDate: o.client.incorporationDate,
         fiscalYearEnd: o.client.fiscalYearEnd,
       },
       updatedAt: row ? (row.updatedAt as Date) : new Date(0),

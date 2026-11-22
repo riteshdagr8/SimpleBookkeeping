@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { JURISDICTIONS } from "@/lib/jurisdictions";
+import { PAY_FREQUENCIES } from "@/lib/payroll-frequency";
 
 interface Props {
   /** The full list of valid workflow statuses for this workflow. */
@@ -15,6 +16,8 @@ interface Props {
   showFyeMonth?: boolean;
   /** Sales Tax: filter by the client's GST/HST filing frequency. */
   showFrequency?: boolean;
+  /** Payroll Processing: filter by pay frequency. */
+  showPayFrequency?: boolean;
 }
 
 const MONTH_NAMES = [
@@ -58,7 +61,14 @@ function provinceLabel(code: string): string {
 /** Pause after the last keystroke before the list is re-queried. */
 const CLIENT_SEARCH_DEBOUNCE_MS = 300;
 
-export function WorkflowFilters({ statuses, slug, provinces, showFyeMonth, showFrequency }: Props) {
+export function WorkflowFilters({
+  statuses,
+  slug,
+  provinces,
+  showFyeMonth,
+  showFrequency,
+  showPayFrequency,
+}: Props) {
   const router = useRouter();
   const params = useSearchParams();
   const [pending, startTransition] = useTransition();
@@ -142,6 +152,22 @@ export function WorkflowFilters({ statuses, slug, provinces, showFyeMonth, showF
               <option value="all">All months</option>
               {MONTH_NAMES.map((name, i) => (
                 <option key={name} value={String(i + 1)}>{name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {showPayFrequency && (
+          <div>
+            <label className="block text-xs font-medium text-fg-muted">Pay frequency</label>
+            <select
+              key={params.get("payFrequency") ?? "all"}
+              defaultValue={params.get("payFrequency") ?? "all"}
+              onChange={(e) => update("payFrequency", e.target.value === "all" ? "" : e.target.value)}
+              className="mt-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-fg"
+            >
+              <option value="all">All</option>
+              {PAY_FREQUENCIES.map((f) => (
+                <option key={f} value={f}>{f}</option>
               ))}
             </select>
           </div>

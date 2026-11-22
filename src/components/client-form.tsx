@@ -6,6 +6,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { InfoDialog } from "@/components/info-dialog";
 import { JURISDICTIONS } from "@/lib/jurisdictions";
+import { PAY_FREQUENCIES, type PayFrequency } from "@/lib/payroll-frequency";
 import { ENTITY_TYPES } from "@/lib/obligation-matrix";
 
 export interface ClientFormInitial {
@@ -32,7 +33,7 @@ export interface ClientFormInitial {
   hstApplicable: boolean;
   hstFrequency: "" | "Monthly" | "Quarterly" | "Annual" | "SelfEmployed";
   payrollApplicable: boolean;
-  payrollFrequency: "" | "Weekly" | "Bi-Weekly" | "Semi-Monthly" | "Monthly" | "NA";
+  payrollFrequencies: PayFrequency[];
   remitterType: "" | "Monthly" | "Quarterly";
   qbOnlinePayroll: boolean;
   threeMonthEligible: boolean;
@@ -62,7 +63,7 @@ export const emptyClient: ClientFormInitial = {
   hstApplicable: false,
   hstFrequency: "",
   payrollApplicable: false,
-  payrollFrequency: "",
+  payrollFrequencies: [],
   remitterType: "",
   qbOnlinePayroll: false,
   threeMonthEligible: false,
@@ -207,7 +208,7 @@ export function ClientForm({
       hstApplicable: form.hstApplicable,
       hstFrequency: form.hstApplicable ? form.hstFrequency || null : null,
       payrollApplicable: form.payrollApplicable,
-      payrollFrequency: form.payrollApplicable ? form.payrollFrequency || null : null,
+      payrollFrequencies: form.payrollApplicable ? form.payrollFrequencies : null,
       remitterType: form.payrollApplicable ? form.remitterType || null : null,
       qbOnlinePayroll: form.payrollApplicable ? form.qbOnlinePayroll : false,
       threeMonthEligible: form.threeMonthEligible,
@@ -376,14 +377,29 @@ export function ClientForm({
             />
             Payroll applicable
           </label>
-          <SelectField
-            label="Frequency (Employee pay frequency)"
-            value={form.payrollFrequency}
-            onChange={(v) => set("payrollFrequency", v as ClientFormInitial["payrollFrequency"])}
-            options={["", "Weekly", "Bi-Weekly", "Semi-Monthly", "Monthly", "NA"]}
-            optionLabels={{ NA: "N/A" }}
-            disabled={!form.payrollApplicable}
-          />
+          <fieldset>
+            <legend className="block text-sm font-medium text-fg">Frequency (employee pay frequency)</legend>
+            <p className="mt-0.5 text-xs text-fg-muted">Select every frequency the client pays on. A schedule is generated for each.</p>
+            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-2">
+              {PAY_FREQUENCIES.map((f) => (
+                <label key={f} className="inline-flex items-center gap-2 text-sm text-fg">
+                  <input
+                    type="checkbox"
+                    checked={form.payrollFrequencies.includes(f)}
+                    disabled={!form.payrollApplicable}
+                    onChange={(e) =>
+                      set(
+                        "payrollFrequencies",
+                        PAY_FREQUENCIES.filter((x) => (x === f ? e.target.checked : form.payrollFrequencies.includes(x)))
+                      )
+                    }
+                    className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
+                  />
+                  {f}
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <SelectField
             label="CRA Remitter"
             value={form.remitterType}

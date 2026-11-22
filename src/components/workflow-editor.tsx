@@ -112,12 +112,8 @@ export function WorkflowEditor({
     const lastStepKey = visibleSteps.length > 0 ? visibleSteps[visibleSteps.length - 1].key : null;
     if (!lastStepKey || !checklist[lastStepKey]) return true;
 
-    const empCount = fields.employeeCount;
+    // The employee count is optional; only the total remittance is required.
     const totalRemit = fields.totalRemittance;
-    if (empCount === null || empCount === "" || empCount === undefined) {
-      setError("Please enter the number of employees before completing this workflow.");
-      return false;
-    }
     if (totalRemit === null || totalRemit === "" || totalRemit === undefined) {
       setError("Please enter the total remittance before completing this workflow.");
       return false;

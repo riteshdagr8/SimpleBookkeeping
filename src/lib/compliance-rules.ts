@@ -293,10 +293,42 @@ export function infoReturnDeadlines(workYear: number): { filingDue: Date } {
 }
 
 /**
- * Payroll processing run periods for a pay frequency, anchored at `start`
- * (start of a month) and covering 12 months. Weekly and Bi-Weekly return 52
- * and 26 runs; Semi-Monthly and Monthly return their 1st-15th / 16th-end
- * (or whole-month) runs.
+ * Firm-wide payroll cycle. Weekly and Bi-Weekly periods always end on a Friday,
+ * and every cycle is counted from one fixed reference period end, so the same
+ * dates come out no matter when the schedule is generated. A weekly period is
+ * the 7 days Saturday to Friday; a bi-weekly period is the 14 days ending on a
+ * Friday, 14 days after the previous one.
+ *
+ * Semi-Monthly and Monthly are calendar-based and don't use this cycle.
+ */
+export const PAYROLL_CYCLE_REFERENCE_END = utc(2026, 11, 13); // a Friday
+export const PAYROLL_CYCLE_DAYS = { Weekly: 7, "Bi-Weekly": 14 } as const;
+
+/** Payroll cycle runs (Weekly / Bi-Weekly) whose period ends fall in [from, to]. */
+export function payrollCycleRuns(
+  from: Date,
+  to: Date,
+  frequency: "Weekly" | "Bi-Weekly"
+): Period[] {
+  const days = PAYROLL_CYCLE_DAYS[frequency];
+  const out: Period[] = [];
+  const step = days * 24 * 60 * 60 * 1000;
+  const k0 = Math.floor((from.getTime() - PAYROLL_CYCLE_REFERENCE_END.getTime()) / step);
+  for (let k = k0; k <= k0 + 60; k++) {
+    const periodEnd = addDays(PAYROLL_CYCLE_REFERENCE_END, k * days);
+    if (periodEnd.getTime() < from.getTime()) continue;
+    if (periodEnd.getTime() > to.getTime()) break;
+    const periodStart = addDays(periodEnd, -(days - 1));
+    out.push({ periodStart, periodEnd, filingDue: periodEnd, paymentDue: periodEnd });
+  }
+  return out;
+}
+
+/**
+ * Payroll processing run periods for a pay frequency, for the 12 months from
+ * `start` (start of a month). Weekly and Bi-Weekly come from the fixed cycle
+ * above; Semi-Monthly and Monthly return their 1st-15th / 16th-end (or
+ * whole-month) runs.
  */
 export function payrollRunPeriods(
   start: Date,
@@ -306,13 +338,10 @@ export function payrollRunPeriods(
   const add = (periodStart: Date, periodEnd: Date) =>
     out.push({ periodStart, periodEnd, filingDue: periodEnd, paymentDue: periodEnd });
   if (frequency === "Weekly" || frequency === "Bi-Weekly") {
-    const count = frequency === "Weekly" ? 52 : 26;
-    const days = frequency === "Weekly" ? 7 : 14;
-    for (let i = 0; i < count; i++) {
-      const periodStart = addDays(start, i * days);
-      add(periodStart, addDays(periodStart, days - 1));
-    }
-    return out;
+    const end = new Date(start);
+    end.setUTCFullYear(end.getUTCFullYear() + 1);
+    end.setUTCDate(end.getUTCDate() + 14);
+    return payrollCycleRuns(start, end, frequency);
   }
   for (let i = 0; i < 12; i++) {
     const month = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + i, 1));
