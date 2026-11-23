@@ -31,26 +31,25 @@ export async function getActiveInteraction(
 
 /**
  * Open a new interaction. If one is already open for the same target, return
- * the existing one (idempotent). The note is overwritten with the latest
- * value.
+ * the existing one (idempotent). When `note` is provided it overwrites the
+ * stored note, including with an empty string (a cleared note). When `note` is
+ * undefined the stored note is left unchanged.
  */
 export async function openInteraction(
   tenantId: string,
   targetType: WorkflowType,
   targetId: string,
-  note: string
+  note: string | undefined
 ): Promise<ClientInteraction> {
   const existing = await prisma.clientInteraction.findFirst({
     where: { targetType, targetId, status: "Pending" },
   });
   if (existing) {
-    if (note && note !== existing.note) {
-      return prisma.clientInteraction.update({
-        where: { id: existing.id },
-        data: { note },
-      });
-    }
-    return existing;
+    if (note === undefined || (note || null) === existing.note) return existing;
+    return prisma.clientInteraction.update({
+      where: { id: existing.id },
+      data: { note: note || null },
+    });
   }
   return prisma.clientInteraction.create({
     data: {

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { getClient } from "@/lib/services/clients";
+import { parsePayFrequencies } from "@/lib/payroll-frequency";
 import { ClientForm, type ClientFormInitial } from "@/components/client-form";
 import { FolderChecklist } from "@/components/folder-checklist";
 import { lastNCompletedFiscalYears } from "@/lib/services/reviews";
@@ -35,11 +36,12 @@ function toInitial(c: NonNullable<Awaited<ReturnType<typeof getClient>>>): Clien
     gstYearEnd: c.gstYearEnd ?? "",
     folderPath: c.folderPath ?? "",
     qbPassword: "",
+    hasQbPassword: !!c.qbPasswordEncrypted,
     onboardingStatus: c.onboardingStatus ?? "In Progress",
     hstApplicable: c.hstApplicable,
     hstFrequency: (c.hstFrequency as "" | "Monthly" | "Quarterly" | "Annual" | "SelfEmployed") ?? "",
     payrollApplicable: c.payrollApplicable,
-    payrollFrequency: (c.payrollFrequency as "" | "Weekly" | "Bi-Weekly" | "Semi-Monthly" | "Monthly" | "NA") ?? "",
+    payrollFrequencies: parsePayFrequencies(c.payrollFrequency),
     remitterType: (c.remitterType as "" | "Monthly" | "Quarterly") ?? "",
     qbOnlinePayroll: c.qbOnlinePayroll,
     threeMonthEligible: c.threeMonthEligible,

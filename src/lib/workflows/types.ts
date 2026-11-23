@@ -32,6 +32,12 @@ export interface WorkflowField {
   key: string;
   label: string;
   type: WorkflowFieldType;
+  /** For number fields: the value must be a whole number (the DB column is Int). */
+  integer?: boolean;
+  /** Only shown and saved for these filing types. Omitted means every filing type of the workflow. */
+  filingTypes?: string[];
+  /** "obligation" stores the value on FilingObligation (same key) instead of the workflow row. */
+  storage?: "obligation";
   /** Optional hint shown below the field. */
   hint?: string;
 }

@@ -17,7 +17,6 @@ interface SP {
 
 /** Filing type → Prisma model name for workflow status lookup */
 const FILING_TYPE_TO_MODEL: Record<string, string> = {
-  PayrollRemittance: "payrollProcessing",
   PayrollProcessing: "payrollProcessing",
   HST: "gSTHSTProcessing",
   GSTQST: "gSTHSTProcessing",
@@ -70,7 +69,7 @@ function typeLabel(t: string, jurisdiction?: string | null): string {
 }
 
 function isOverdue(due: Date | null, status: string) {
-  if (status === "Filed/Completed" || status === "Completed") return false;
+  if (status === "Filed/Completed" || status === "Completed" || status === "Cancelled") return false;
   if (!due) return false;
   return due.getTime() < Date.now();
 }
@@ -145,6 +144,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   function classifyStatus(s: string): string {
     if (s === "Pending" || s === "WaitingOnClient") return s;
     if (s === "Completed" || s === "Filed/Completed") return "Completed";
+    if (s === "Cancelled") return "Cancelled";
     return "InProgress";
   }
 

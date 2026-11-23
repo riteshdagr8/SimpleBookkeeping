@@ -122,7 +122,7 @@ default tenant and demo users.
   self-employed), T5013 (partnership), and T3 (trust) returns.
 - **Sales Tax** (`/sales-tax`) — GST/HST, GST, GST/QST, and GST + PST/RST
   obligations selected by jurisdiction.
-- **Payroll** (`/payroll`) — payroll remittance filings.
+- **Payroll** (`/payroll`) — payroll processing runs, driven by each client's pay frequency. Payroll remittances are no longer scheduled; see `npm run remove-payroll-remittance` to clear existing rows.
 - **Federal AR** (`/federal-ar`) — federal annual returns.
 - **Provincial AR** (`/provincial-ar`) — provincial/territorial registry
   annual returns for all 13 regions.
@@ -187,14 +187,17 @@ if the CLI is not on PATH. To install the CLI on Windows, grab
 `sqlite-tools-win-x64` from <https://www.sqlite.org/download.html> and
 put the folder on your system PATH.
 
-To restore:
+To restore a backup, pass its file name. `--file` is required:
 
 ```bash
-npm run restore             # interactive picker
-npm run restore -- --list   # show available backups
+npm run restore-payroll-remittance -- --list                                # show available backups
+npm run restore-payroll-remittance -- --file=simplebookkeeping-20261120-000210.db
 ```
 
-Stop the SimpleBookkeeping app before restoring.
+Backups are looked up in `backups/pre-migration` and `backups/`. Stop the
+SimpleBookkeeping app before restoring; the script refuses to run while the app
+is listening. Before overwriting, it saves the current database and prints that
+file's name, so the restore can be undone.
 
 ## Schedule maintenance
 
@@ -242,7 +245,25 @@ a due date but cover different periods (e.g. a monthly and a quarterly return
 landing on the same deadline) are left alone. Any row with a workflow row or
 client interaction attached is **skipped**, never deleted.
 
-### Recommended order on an existing database
+#### Payroll remittance removal (`npm run remove-payroll-remittance`)
+
+Payroll remittances are no longer generated. This script deletes the remittance
+rows already on the schedule. It is dry-run by default and snapshots the database
+before any delete.
+
+```bash
+npm run remove-payroll-remittance                          # dry run, lists every row
+npm run remove-payroll-remittance -- --apply               # delete rows with no recorded work
+npm run remove-payroll-remittance -- --apply --include-worked  # also delete rows with recorded work
+```
+
+For step-by-step instructions on running this against a live database, see
+`docs/runbooks/payroll-remittance-removal.md`.
+
+A row with recorded work (filed, status moved on, checklist ticked, values entered,
+notes, or a client interaction) is kept and listed unless `--include-worked` is given.
+
+## Recommended order on an existing database
 
 ```bash
 stop.cmd                                        # 1. stop the app
@@ -270,9 +291,11 @@ backfill to match against.
 | `npm run create-admin -- --email <e> --password <p> --name "<n>"` | create the first admin (or any admin) |
 | `npm run crypto-init` | generate `APP_DATA_KEY` and append to `.env` |
 | `npm run backup` | run a backup now |
-| `npm run restore` | restore a backup (interactive) |
+| `npm run restore-payroll-remittance -- --file=<name>` | restore a backup by file name (see Backups) |
 | `npm run backfill-fye` | move client fiscal year-ends to month-end, and repair affected obligation dates (see below) |
 | `npm run dedup-obligations` | collapse duplicate obligation rows (see below) |
+| `npm run remove-payroll-remittance` | delete Payroll Remittance schedule rows (dry run by default; see below) |
+| `npm run realign-payroll-cycles` | put Weekly and Bi-Weekly payroll runs on the firm-wide Friday cycle (dry run by default; see `docs/runbooks/payroll-cycle-realignment.md`) |
 | `start.cmd` / `./start.sh` | detached dev server (background, log files) |
 | `stop.cmd` / `./stop.sh` | stop the detached dev server |
 
@@ -305,7 +328,7 @@ scripts/
   create-admin.ts         CLI admin creation
   crypto-init.ts          Generate APP_DATA_KEY
   backup.ts               Hourly backup with 7d hourly / 1d daily retention
-  restore.ts              Interactive restore picker
+  restore-payroll-remittance.ts  Restore a backup by file name
 data/
   app.db                  SQLite database (gitignored)
 backups/

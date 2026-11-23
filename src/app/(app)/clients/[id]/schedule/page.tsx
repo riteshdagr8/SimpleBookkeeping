@@ -10,14 +10,13 @@ import { ObligationTable } from "@/components/obligation-table";
 import { getConfigByFilingType } from "@/lib/workflows/configs";
 
 const WORKFLOW_FILING_TYPES = new Set([
-  "PayrollRemittance", "HST", "GSTQST", "GST", "PST", "RST",
+  "HST", "GSTQST", "GST", "PST", "RST",
   "T2", "T1", "T5013", "T3", "ProvincialAnnualReturn",
   "FederalAnnualReturn", "T4", "T4A", "T5", "T3Slips",
 ]);
 
 /** Filing type → Prisma model name */
 const FILING_TYPE_TO_MODEL: Record<string, string> = {
-  PayrollRemittance: "payrollProcessing",
   PayrollProcessing: "payrollProcessing",
   HST: "gSTHSTProcessing",
   GSTQST: "gSTHSTProcessing",

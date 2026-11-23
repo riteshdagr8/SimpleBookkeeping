@@ -1,4 +1,4 @@
-import type { WorkflowConfig } from "./types";
+import type { WorkflowConfig, WorkflowField } from "./types";
 
 // 6 workflow configurations. Each one drives a dedicated page, an editor, and
 // an API. The `statusByStep` array MUST be the same length as `steps` and in
@@ -11,14 +11,15 @@ export const WORKFLOW_CONFIGS: Record<string, WorkflowConfig> = {
     slug: "payroll",
     displayName: "Payroll Processing",
     shortName: "Payroll",
-    filingTypes: ["PayrollRemittance", "PayrollProcessing"],
+    filingTypes: ["PayrollProcessing"],
     prismaModel: "payrollProcessing",
     allowsClientInteraction: true,
     interactionType: "Payroll",
     initialStatus: "Pending",
     // 5 steps → 5 statuses. The 5th (Remittance, conditional) is the terminal
     // for QBO clients. For non-QBO clients, step 4 (Sent) reaches "Completed"
-    // when checked with valid employee count and remittance (including 0).
+    // when checked with a total remittance (including 0). The employee count is
+    // optional everywhere.
     statusByStep: ["Ready", "Processed", "Generated", "Sent", "Completed"],
     steps: [
       {
@@ -43,11 +44,9 @@ export const WORKFLOW_CONFIGS: Record<string, WorkflowConfig> = {
         comment:
           "Send payroll reports and pay stubs to the client on the last business day of the month, or on the next business day if the month-end falls on a weekend or holiday",
         fieldsSatisfied: (fields) => {
-          // For non-QBO clients, this is the terminal step. Require both fields
-          // to be present (including 0 as a valid value).
-          const hasEmployeeCount = fields.employeeCount != null && fields.employeeCount !== "";
-          const hasTotalRemittance = fields.totalRemittance != null && fields.totalRemittance !== "";
-          return hasEmployeeCount && hasTotalRemittance;
+          // For non-QBO clients, this is the terminal step. The total remittance
+          // must be present (including 0); the employee count is optional.
+          return fields.totalRemittance != null && fields.totalRemittance !== "";
         },
       },
       {
@@ -57,16 +56,14 @@ export const WORKFLOW_CONFIGS: Record<string, WorkflowConfig> = {
           "For clients using QuickBooks Online Payroll, process and submit payroll remittances as required.",
         condition: (ctx) => Boolean(ctx.client.qbOnlinePayroll),
         fieldsSatisfied: (fields) => {
-          // For QBO clients, this is the terminal step. Require both fields
-          // to be present (including 0 as a valid value).
-          const hasEmployeeCount = fields.employeeCount != null && fields.employeeCount !== "";
-          const hasTotalRemittance = fields.totalRemittance != null && fields.totalRemittance !== "";
-          return hasEmployeeCount && hasTotalRemittance;
+          // For QBO clients, this is the terminal step. The total remittance
+          // must be present (including 0); the employee count is optional.
+          return fields.totalRemittance != null && fields.totalRemittance !== "";
         },
       },
     ],
     fields: [
-      { key: "employeeCount", label: "Number of employees", type: "number" },
+      { key: "employeeCount", label: "Number of employees", type: "number", integer: true },
       { key: "totalRemittance", label: "Total remittance", type: "number" },
     ],
   },
@@ -266,6 +263,13 @@ export const WORKFLOW_CONFIGS: Record<string, WorkflowConfig> = {
     fields: [
       { key: "filingDate", label: "Filing date", type: "date" },
       { key: "craConfirmationNumber", label: "CRA confirmation number", type: "text" },
+      {
+        key: "amount",
+        label: "Amount",
+        type: "number",
+        filingTypes: ["T4A", "T5"],
+        storage: "obligation",
+      },
     ],
   },
 };
@@ -286,4 +290,9 @@ export function getConfigByFilingType(filingType: string): WorkflowConfig | null
     if (c.filingTypes.includes(filingType)) return c;
   }
   return null;
+}
+
+/** The fields that apply to one filing type of a workflow. */
+export function fieldsForFilingType(config: WorkflowConfig, filingType: string): WorkflowField[] {
+  return config.fields.filter((f) => !f.filingTypes || f.filingTypes.includes(filingType));
 }

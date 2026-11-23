@@ -292,52 +292,43 @@ export function infoReturnDeadlines(workYear: number): { filingDue: Date } {
   return { filingDue: utc(workYear + 1, 3, 0) };
 }
 
-/** Payroll remittance periods (CRA). */
-export function payrollRemittancePeriods(
-  fye: Date,
-  remitterType: "Monthly" | "Quarterly"
+/**
+ * Firm-wide payroll cycle. Weekly and Bi-Weekly periods always end on a Friday,
+ * and every cycle is counted from one fixed reference period end, so the same
+ * dates come out no matter when the schedule is generated. A weekly period is
+ * the 7 days Saturday to Friday; a bi-weekly period is the 14 days ending on a
+ * Friday, 14 days after the previous one.
+ *
+ * Semi-Monthly and Monthly are calendar-based and don't use this cycle.
+ */
+export const PAYROLL_CYCLE_REFERENCE_END = utc(2026, 11, 13); // a Friday
+export const PAYROLL_CYCLE_DAYS = { Weekly: 7, "Bi-Weekly": 14 } as const;
+
+/** Payroll cycle runs (Weekly / Bi-Weekly) whose period ends fall in [from, to]. */
+export function payrollCycleRuns(
+  from: Date,
+  to: Date,
+  frequency: "Weekly" | "Bi-Weekly"
 ): Period[] {
-  const year = fye.getUTCFullYear();
-  if (remitterType === "Quarterly") {
-    const quarterEnds = [
-      utc(year, 3, 31),
-      utc(year, 6, 30),
-      utc(year, 9, 30),
-      utc(year, 12, 31),
-    ];
-    return quarterEnds.map((periodEnd) => {
-      // Q1 ends Mar (month index 2) starts Jan (1-based Jan in utc() = 1).
-      // 2 - 1 = 1 = January 1. Same off-by-one fix as HST quarterly.
-      const periodStart = utc(periodEnd.getUTCFullYear(), periodEnd.getUTCMonth() - 1, 1);
-      // Quarterly remitter: due the 15th of the month after the quarter end
-      const due = utc(periodEnd.getUTCFullYear(), periodEnd.getUTCMonth() + 2, 15);
-      return { periodStart, periodEnd, filingDue: due, paymentDue: due };
-    });
+  const days = PAYROLL_CYCLE_DAYS[frequency];
+  const out: Period[] = [];
+  const step = days * 24 * 60 * 60 * 1000;
+  const k0 = Math.floor((from.getTime() - PAYROLL_CYCLE_REFERENCE_END.getTime()) / step);
+  for (let k = k0; k <= k0 + 60; k++) {
+    const periodEnd = addDays(PAYROLL_CYCLE_REFERENCE_END, k * days);
+    if (periodEnd.getTime() < from.getTime()) continue;
+    if (periodEnd.getTime() > to.getTime()) break;
+    const periodStart = addDays(periodEnd, -(days - 1));
+    out.push({ periodStart, periodEnd, filingDue: periodEnd, paymentDue: periodEnd });
   }
-  // Monthly remitter: 12 monthly periods, due the 15th of the following month.
-  const periods: Period[] = [];
-  for (let m = 0; m < 12; m++) {
-    const periodEnd = utc(year, m + 1, 1);
-    periodEnd.setUTCMonth(m + 1);
-    periodEnd.setUTCDate(0);
-    const periodStart = utc(year, m + 1, 1);
-    // Due the 15th of the month after the period ends. For January period (month
-    // index 0): 0 + 2 = 2 = Feb 15.
-    const due = utc(periodEnd.getUTCFullYear(), periodEnd.getUTCMonth() + 2, 15);
-    periods.push({ periodStart, periodEnd, filingDue: due, paymentDue: due });
-  }
-  return periods;
+  return out;
 }
 
 /**
- * Rolling-window payroll remittance periods, anchored at `start` (start of a
- * month) and extending 12 months forward. Used by the schedule generator so
- * that "Generate schedule" produces the next 12 months of obligations
- * regardless of the client's FYE year.
- *
- * For Quarterly remitter, returns the 4 calendar quarter-ends that fall
- * within the window. For Monthly, returns 12 monthly periods starting at
- * `start`. For Accelerated1/2, returns [] (rule math not yet implemented).
+ * Payroll processing run periods for a pay frequency, for the 12 months from
+ * `start` (start of a month). Weekly and Bi-Weekly come from the fixed cycle
+ * above; Semi-Monthly and Monthly return their 1st-15th / 16th-end (or
+ * whole-month) runs.
  */
 export function payrollRunPeriods(
   start: Date,
@@ -347,13 +338,10 @@ export function payrollRunPeriods(
   const add = (periodStart: Date, periodEnd: Date) =>
     out.push({ periodStart, periodEnd, filingDue: periodEnd, paymentDue: periodEnd });
   if (frequency === "Weekly" || frequency === "Bi-Weekly") {
-    const count = frequency === "Weekly" ? 52 : 26;
-    const days = frequency === "Weekly" ? 7 : 14;
-    for (let i = 0; i < count; i++) {
-      const periodStart = addDays(start, i * days);
-      add(periodStart, addDays(periodStart, days - 1));
-    }
-    return out;
+    const end = new Date(start);
+    end.setUTCFullYear(end.getUTCFullYear() + 1);
+    end.setUTCDate(end.getUTCDate() + 14);
+    return payrollCycleRuns(start, end, frequency);
   }
   for (let i = 0; i < 12; i++) {
     const month = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + i, 1));
@@ -367,46 +355,6 @@ export function payrollRunPeriods(
     if (frequency === "Monthly") {
       out[out.length - 1] = { periodStart: new Date(month), periodEnd: last, filingDue: last, paymentDue: last };
     }
-  }
-  return out;
-}
-
-export function payrollRemittancePeriodsRolling(
-  start: Date,
-  remitterType: "Monthly" | "Quarterly"
-): Period[] {
-  const end = new Date(start);
-  end.setUTCMonth(end.getUTCMonth() + 12);
-  if (remitterType === "Quarterly") {
-    // 4 quarter-ends per calendar year: Mar 31, Jun 30, Sep 30, Dec 31.
-    // We iterate over the calendar year(s) that the window overlaps.
-    const out: Period[] = [];
-    for (let y = start.getUTCFullYear(); y <= end.getUTCFullYear(); y++) {
-      for (const [m, day] of [
-        [3, 31],
-        [6, 30],
-        [9, 30],
-        [12, 31],
-      ] as const) {
-        const periodEnd = utc(y, m, day);
-        if (periodEnd.getTime() < start.getTime()) continue;
-        if (periodEnd.getTime() > end.getTime()) break;
-        const periodStart = utc(y, m - 2, 1);
-        const due = utc(periodEnd.getUTCFullYear(), periodEnd.getUTCMonth() + 2, 15);
-        out.push({ periodStart, periodEnd, filingDue: due, paymentDue: due });
-      }
-    }
-    return out;
-  }
-  // Monthly
-  const out: Period[] = [];
-  for (let i = 0; i < 12; i++) {
-    const m = new Date(start);
-    m.setUTCMonth(m.getUTCMonth() + i);
-    const periodStart = new Date(Date.UTC(m.getUTCFullYear(), m.getUTCMonth(), 1));
-    const periodEnd = new Date(Date.UTC(m.getUTCFullYear(), m.getUTCMonth() + 1, 0));
-    const due = utc(periodEnd.getUTCFullYear(), periodEnd.getUTCMonth() + 2, 15);
-    out.push({ periodStart, periodEnd, filingDue: due, paymentDue: due });
   }
   return out;
 }

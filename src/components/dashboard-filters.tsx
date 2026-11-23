@@ -3,17 +3,18 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 
-const STATUSES = ["all", "Pending", "InProgress", "Completed", "WaitingOnClient"] as const;
+const STATUSES = ["all", "Pending", "InProgress", "Completed", "Cancelled", "WaitingOnClient"] as const;
 
 const STATUS_LABELS: Record<string, string> = {
   all: "All",
   Pending: "Pending",
   InProgress: "In Progress",
+  Cancelled: "Cancelled",
   Completed: "Completed",
   WaitingOnClient: "Waiting on Client",
 };
 
-const TYPES = ["", "T2", "T1", "T5013", "T3", "HST", "GST", "GSTQST", "PST", "RST", "PayrollRemittance", "ProvincialAnnualReturn", "FederalAnnualReturn", "T4", "T4A", "T5", "T3Slips"] as const;
+const TYPES = ["", "T2", "T1", "T5013", "T3", "HST", "GST", "GSTQST", "PST", "RST", "ProvincialAnnualReturn", "FederalAnnualReturn", "T4", "T4A", "T5", "T3Slips"] as const;
 
 const TYPE_LABELS: Record<string, string> = {
   T2: "Corporate Tax Return (T2)",
@@ -25,7 +26,6 @@ const TYPE_LABELS: Record<string, string> = {
   GSTQST: "GST/QST Return",
   PST: "PST Return",
   RST: "RST Return",
-  PayrollRemittance: "Payroll Remittance",
   ProvincialAnnualReturn: "Provincial Annual Return",
   FederalAnnualReturn: "Federal Annual Return",
   T4: "T4",

@@ -6,7 +6,7 @@ import {
 export default async function PayrollListPage({
   searchParams,
 }: {
-  searchParams: Promise<{ clientId?: string; from?: string; to?: string; status?: string }>;
+  searchParams: Promise<{ client?: string; province?: string; fyeMonth?: string; frequency?: string; from?: string; to?: string; status?: string }>;
 }) {
   const sp = await searchParams;
   const props = await buildWorkflowListProps("Payroll", sp);

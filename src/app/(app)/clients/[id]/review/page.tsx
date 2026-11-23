@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { getClient } from "@/lib/services/clients";
 import { ensureReviewRows, lastNCompletedFiscalYears } from "@/lib/services/reviews";
+import { reviewGroupsForClient, type ReviewGroup } from "@/lib/review-groups";
+import { clientComplianceConfig } from "@/lib/services/obligations";
 import { HistoricalReviewMatrix } from "@/components/historical-review-matrix";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -18,6 +20,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
   if (!refreshed) notFound();
 
   const years = lastNCompletedFiscalYears(refreshed.fiscalYearEnd, refreshed.reviewYears);
+  const applicableGroups = [...reviewGroupsForClient(clientComplianceConfig(refreshed))] as ReviewGroup[];
 
   return (
     <div className="space-y-4">
@@ -48,6 +51,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
           notes: r.notes,
         }))}
         reviewComplete={refreshed.reviewComplete}
+        applicableGroups={applicableGroups}
       />
     </div>
   );

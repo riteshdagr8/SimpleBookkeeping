@@ -4,6 +4,7 @@ import { clientInputSchema, getClient, updateClient, deleteClient } from "@/lib/
 import { findInvalidPendingObligations } from "@/lib/services/obligations";
 import { prisma } from "@/lib/prisma";
 import type { ComplianceConfig } from "@/lib/obligation-matrix";
+import { joinPayFrequencies } from "@/lib/payroll-frequency";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();
@@ -18,8 +19,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  // requireUser() redirects on failure by throwing; keep it outside the try so
+  // the redirect isn't swallowed and turned into a 500.
+  const user = await requireUser();
   try {
-    const user = await requireUser();
     const { id } = await params;
     const body = await req.json().catch(() => null);
     const parsed = clientInputSchema.safeParse(body);
@@ -53,7 +56,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         hstApplicable: parsed.data.hstApplicable ?? existing.hstApplicable,
         hstFrequency: parsed.data.hstFrequency ?? existing.hstFrequency,
         payrollApplicable: parsed.data.payrollApplicable ?? existing.payrollApplicable,
-        payrollFrequency: parsed.data.payrollFrequency ?? existing.payrollFrequency,
+        payrollFrequency:
+          parsed.data.payrollFrequencies !== undefined
+            ? joinPayFrequencies(parsed.data.payrollFrequencies)
+            : existing.payrollFrequency,
         remitterType: parsed.data.remitterType ?? existing.remitterType,
       };
       const invalid = await findInvalidPendingObligations(id, newConfig);
@@ -68,6 +74,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       }
     }
 
+    // Reject a review-locked year-count change before anything is deleted, so a
+    // failed save can't leave the schedule purged while the client is unchanged.
+    if (existing.reviewComplete && parsed.data.reviewYears !== undefined && parsed.data.reviewYears !== existing.reviewYears) {
+      return NextResponse.json(
+        { error: "Review is complete — unmark 'Review complete' before changing the year count." },
+        { status: 400 }
+      );
+    }
+
     // Confirmed (or nothing invalidated): purge invalid future-pending rows, then save.
     if (entityChanged || jurisdictionChanged) {
       const newConfig: ComplianceConfig = {
@@ -77,7 +92,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         hstApplicable: parsed.data.hstApplicable ?? existing.hstApplicable,
         hstFrequency: parsed.data.hstFrequency ?? existing.hstFrequency,
         payrollApplicable: parsed.data.payrollApplicable ?? existing.payrollApplicable,
-        payrollFrequency: parsed.data.payrollFrequency ?? existing.payrollFrequency,
+        payrollFrequency:
+          parsed.data.payrollFrequencies !== undefined
+            ? joinPayFrequencies(parsed.data.payrollFrequencies)
+            : existing.payrollFrequency,
         remitterType: parsed.data.remitterType ?? existing.remitterType,
       };
       const invalid = await findInvalidPendingObligations(id, newConfig);

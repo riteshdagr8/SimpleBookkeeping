@@ -105,7 +105,6 @@ export function filingTypesForClient(config: ComplianceConfig): Set<string> {
   for (const t of annualReturnFilingTypes(config)) set.add(t);
 
   if (config.payrollApplicable) {
-    if (config.remitterType) set.add("PayrollRemittance");
     if (config.payrollFrequency) set.add("PayrollProcessing");
   }
 

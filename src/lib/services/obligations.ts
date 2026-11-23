@@ -5,7 +5,6 @@ import {
   federalAnnualReturn,
   infoReturnDeadlines,
   nextAnniversary,
-  payrollRemittancePeriodsRolling,
   payrollRunPeriods,
   provincialAnnualReturnDeadline,
   salesTaxPeriods,
@@ -24,12 +23,12 @@ import {
   type ComplianceConfig,
 } from "@/lib/obligation-matrix";
 import { OBLIGATION_STATUS_VALUES } from "@/lib/obligation-status";
+import { frequencyForPeriod, parsePayFrequencies } from "@/lib/payroll-frequency";
+import type { ReviewGroup } from "@/lib/review-groups";
 
 const OBLIGATION_STATUSES = OBLIGATION_STATUS_VALUES;
 
 const HST_FREQUENCIES = ["Monthly", "Quarterly", "Annual", "SelfEmployed"] as const;
-const REMITTER_TYPES = ["Monthly", "Quarterly"] as const;
-const PAYROLL_FREQUENCIES = ["Weekly", "Bi-Weekly", "Semi-Monthly", "Monthly"] as const;
 
 const SALES_TAX_TYPES = ["HST", "GST", "GSTQST", "PST", "RST"] as const;
 
@@ -164,8 +163,11 @@ export interface ScheduleClientInput {
 export function buildScheduleRows(
   client: ScheduleClientInput,
   windowStart: Date,
-  windowEnd: Date
+  windowEnd: Date,
+  /** When given, only the filings belonging to these review groups are built. */
+  groups?: ReadonlySet<ReviewGroup>
 ): { rows: ScheduleRow[]; warnings: string[] } {
+  const groupOn = (g: ReviewGroup) => !groups || groups.has(g);
   const clientId = client.id;
   const config = clientComplianceConfig(client);
   const rows: ScheduleRow[] = [];
@@ -189,16 +191,16 @@ export function buildScheduleRows(
   // month-end, so the period closes on the last day of the FYE month. NOTE:
   // getUTCMonth() is 0-based while utc() takes a 1-based month, hence +2.
   const fyeEnd = utc(fye.getUTCFullYear(), fye.getUTCMonth() + 2, 0);
-  const fyeStart = (() => {
-    const s = new Date(fyeEnd);
-    s.setUTCMonth(s.getUTCMonth() - 12);
-    s.setUTCDate(s.getUTCDate() + 1);
-    return s;
-  })();
+  // The period starts on the 1st of the month after the prior year-end's month.
+  // Built from the calendar directly: setUTCMonth(-12) overflows on Feb 29 (a
+  // leap-year FYE would start Mar 2 instead of Mar 1).
+  const fyeStart = utc(fye.getUTCFullYear() - 1, fye.getUTCMonth() + 2, 1);
 
   // ---- Income tax (exactly one, by entity type) ----
   const incomeType = incomeTaxFilingType(client.entityType);
-  if (incomeType === "T2") {
+  if (!groupOn("IncomeTaxes")) {
+    // Skip the income tax section.
+  } else if (incomeType === "T2") {
     const t2 = t2Deadlines(fye, client.threeMonthEligible);
     if (inWindow(t2.filingDue)) {
       rows.push({
@@ -256,6 +258,7 @@ export function buildScheduleRows(
   // the filings: HST / GST / GST/QST / GST+PST|RST). Monthly is anchored to the
   // rolling window; other frequencies use the gstYearEnd/FYE anchor.
   if (
+    groupOn("SalesTax") &&
     client.hstApplicable &&
     client.hstFrequency &&
     HST_FREQUENCIES.includes(client.hstFrequency as (typeof HST_FREQUENCIES)[number])
@@ -287,8 +290,10 @@ export function buildScheduleRows(
   }
 
   // ---- Corporate annual returns (suppressed for non-Corporation entities) ----
-  const arTypes = annualReturnFilingTypes(config);
-  if (arTypes.includes("FederalAnnualReturn") && client.incorporationDate) {
+  const arTypesFiltered = annualReturnFilingTypes(config).filter((t) =>
+    t === "FederalAnnualReturn" ? groupOn("FederalAR") : groupOn("ProvincialAR")
+  );
+  if (arTypesFiltered.includes("FederalAnnualReturn") && client.incorporationDate) {
     const far = federalAnnualReturn(client.incorporationDate);
     if (inWindow(far.filingDue)) {
       const periodEnd = far.filingDue;
@@ -304,7 +309,7 @@ export function buildScheduleRows(
       });
     }
   }
-  if (arTypes.includes("ProvincialAnnualReturn")) {
+  if (arTypesFiltered.includes("ProvincialAnnualReturn")) {
     const due = provincialAnnualReturnDeadline(jur, fye, client.incorporationDate);
     if (due && inWindow(due)) {
       const isFyeBased = jur === "ON" || jur === "QC";
@@ -327,7 +332,7 @@ export function buildScheduleRows(
   }
 
   // ---- Info returns (entity-aware) ----
-  const infoTypes = infoReturnFilingTypes(config);
+  const infoTypes = groupOn("InformationReturns") ? infoReturnFilingTypes(config) : [];
   if (infoTypes.includes("T3Slips")) {
     const d = t3Deadlines(fye);
     if (inWindow(d.filingDue)) {
@@ -356,45 +361,21 @@ export function buildScheduleRows(
     }
   }
 
-  // ---- Payroll remittances (Monthly → 15th of following month; Quarterly → 15th after quarter-end) ----
-  if (
-    client.payrollApplicable &&
-    client.remitterType &&
-    REMITTER_TYPES.includes(client.remitterType as (typeof REMITTER_TYPES)[number])
-  ) {
-    const remitter = client.remitterType as (typeof REMITTER_TYPES)[number];
-    const periods = payrollRemittancePeriodsRolling(windowStart, remitter);
-    for (const p of periods) {
-      rows.push({
-        clientId,
-        filingType: "PayrollRemittance",
-        periodStart: p.periodStart,
-        periodEnd: p.periodEnd,
-        filingDueDate: p.filingDue,
-        paymentDueDate: p.paymentDue,
-        status: "Pending",
-      });
-    }
-  }
-
-  // ---- Employee payroll processing runs, driven by pay frequency ----
-  if (
-    client.payrollApplicable &&
-    client.payrollFrequency &&
-    PAYROLL_FREQUENCIES.includes(client.payrollFrequency as (typeof PAYROLL_FREQUENCIES)[number])
-  ) {
-    const frequency = client.payrollFrequency as (typeof PAYROLL_FREQUENCIES)[number];
-    for (const p of payrollRunPeriods(windowStart, frequency)) {
-      if (!inWindow(p.filingDue)) continue;
-      rows.push({
-        clientId,
-        filingType: "PayrollProcessing",
-        periodStart: p.periodStart,
-        periodEnd: p.periodEnd,
-        filingDueDate: p.filingDue,
-        paymentDueDate: p.paymentDue,
-        status: "Pending",
-      });
+  // ---- Employee payroll processing runs: one set per selected pay frequency ----
+  if (groupOn("Payroll") && client.payrollApplicable) {
+    for (const frequency of parsePayFrequencies(client.payrollFrequency)) {
+      for (const p of payrollRunPeriods(windowStart, frequency)) {
+        if (!inWindow(p.filingDue)) continue;
+        rows.push({
+          clientId,
+          filingType: "PayrollProcessing",
+          periodStart: p.periodStart,
+          periodEnd: p.periodEnd,
+          filingDueDate: p.filingDue,
+          paymentDueDate: p.paymentDue,
+          status: "Pending",
+        });
+      }
     }
   }
 
@@ -420,7 +401,7 @@ export function buildScheduleRows(
   const hasProvincialAr = rows.some((r) => r.filingType === "ProvincialAnnualReturn");
   const needsIncDate =
     jur && jur !== "Federal" && jur !== "ON" && jur !== "QC" && !client.incorporationDate;
-  if (arTypes.includes("ProvincialAnnualReturn") && !hasProvincialAr && needsIncDate) {
+  if (arTypesFiltered.includes("ProvincialAnnualReturn") && !hasProvincialAr && needsIncDate) {
     warnings.push(
       `Provincial Annual Return for ${jur} is due from the incorporation anniversary, which requires an incorporation date. Add the incorporation date and regenerate the schedule.`
     );
@@ -466,8 +447,34 @@ export async function generateObligationsForClient(
     },
     select: { id: true },
   });
-  if (stale.length > 0) {
-    ops.push(prisma.filingObligation.deleteMany({ where: { id: { in: stale.map((s) => s.id) } } }));
+  // Pending payroll runs for a pay frequency the client no longer has are stale
+  // too. Runs with a workflow record are kept, as they hold work.
+  const selectedPay = client.payrollApplicable ? parsePayFrequencies(client.payrollFrequency) : [];
+  const payRuns = await prisma.filingObligation.findMany({
+    where: {
+      clientId,
+      autoGenerated: true,
+      status: "Pending",
+      filingType: "PayrollProcessing",
+      OR: [{ filingDueDate: null }, { filingDueDate: { gte: today } }],
+    },
+    select: { id: true, periodStart: true, periodEnd: true, payrollProcessing: { select: { id: true } } },
+  });
+  // Runs the generator still wants are never purged, even when their dates
+  // look like another frequency's (see frequencyForPeriod).
+  const wantedRuns = new Set(
+    rows
+      .filter((r) => r.filingType === "PayrollProcessing")
+      .map((r) => `${r.periodStart?.getTime()}|${r.periodEnd?.getTime()}`)
+  );
+  const staleRuns = payRuns.filter((r) =>
+    !r.payrollProcessing &&
+    !wantedRuns.has(`${r.periodStart?.getTime()}|${r.periodEnd?.getTime()}`) &&
+    !(r.periodStart && r.periodEnd && selectedPay.includes(frequencyForPeriod(r.periodStart, r.periodEnd)!))
+  );
+  const staleIds = [...stale.map((s) => s.id), ...staleRuns.map((r) => r.id)];
+  if (staleIds.length > 0) {
+    ops.push(prisma.filingObligation.deleteMany({ where: { id: { in: staleIds } } }));
   }
 
   if (rows.length > 0) {
@@ -673,7 +680,10 @@ export async function reconcilePendingObligations(
 
   for (const row of existing) {
     if (!validTypes.has(row.filingType)) {
-      deletions.push({ id: row.id, filingType: row.filingType });
+      // Past-due rows are history: a repair pass may correct them but never
+      // deletes them, even when their filing type no longer applies.
+      const isPast = !!row.filingDueDate && row.filingDueDate.getTime() < today.getTime();
+      if (!isPast) deletions.push({ id: row.id, filingType: row.filingType });
       continue;
     }
     const best = matchDesired(row, desired, used, existing);

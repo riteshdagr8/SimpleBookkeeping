@@ -2,7 +2,9 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getConfigByType, WORKFLOW_CONFIGS } from "@/lib/workflows/configs";
+import { fieldsForFilingType, getConfigByType, WORKFLOW_CONFIGS } from "@/lib/workflows/configs";
+import { PAY_FREQUENCIES } from "@/lib/payroll-frequency";
+import type { ExtraColumn } from "@/components/workflow-table";
 import { listWorkflows, getOrCreateWorkflow } from "@/lib/workflows/service";
 import { getActiveInteraction } from "@/lib/workflows/interactions";
 import { WorkflowFilters } from "@/components/workflow-filters";
@@ -17,9 +19,20 @@ import { jurisdictionLabel } from "@/lib/jurisdictions";
  * workflow's page.tsx. Returns the list rows + active client list for the
  * filter dropdown.
  */
+const HST_FREQUENCY_VALUES = ["Monthly", "Quarterly", "Annual", "SelfEmployed"];
+
 export async function buildWorkflowListProps(
   type: WorkflowType,
-  searchParams: { clientId?: string; province?: string; from?: string; to?: string; status?: string }
+  searchParams: {
+    client?: string;
+    province?: string;
+    fyeMonth?: string;
+    frequency?: string;
+    payFrequency?: string;
+    from?: string;
+    to?: string;
+    status?: string;
+  }
 ) {
   const user = await requireUser();
   const config = getConfigByType(type);
@@ -31,24 +44,33 @@ export async function buildWorkflowListProps(
     searchParams.status === "all" || searchParams.status === ""
       ? undefined
       : searchParams.status ?? "Pending";
+  const fyeMonthNum = Number(searchParams.fyeMonth);
   const filters = {
-    clientId: searchParams.clientId,
+    clientName: searchParams.client?.trim() || undefined,
     province: searchParams.province || undefined,
+    fyeMonth: Number.isInteger(fyeMonthNum) && fyeMonthNum >= 1 && fyeMonthNum <= 12 ? fyeMonthNum : undefined,
+    frequency: HST_FREQUENCY_VALUES.includes(searchParams.frequency ?? "") ? searchParams.frequency : undefined,
+    payFrequency: (PAY_FREQUENCIES as readonly string[]).includes(searchParams.payFrequency ?? "")
+      ? searchParams.payFrequency
+      : undefined,
     from: searchParams.from ? new Date(searchParams.from) : undefined,
     to: searchParams.to ? new Date(searchParams.to) : undefined,
     status: statusFilter,
   };
   const rows = await listWorkflows(user.tenantId, type, filters);
 
-  // Active clients for the filter dropdown.
+  // Active clients, used to build the Province options.
   const clients = await prisma.client.findMany({
     where: { tenantId: user.tenantId, active: true },
-    orderBy: [{ fileNumber: "asc" }],
-    select: { id: true, fileNumber: true, legalName: true, incorporationJurisdiction: true },
+    select: { incorporationJurisdiction: true },
   });
 
   // Build the status list for the filter (initial + all statusByStep entries).
-  const allStatuses = Array.from(new Set([config.initialStatus, ...config.statusByStep]));
+  // WaitingOnClient is set by the "waiting on client" checkbox, not by a step,
+  // so it has to be added here or waiting rows can't be filtered for.
+  const allStatuses = Array.from(
+    new Set([config.initialStatus, ...config.statusByStep, "WaitingOnClient"])
+  );
 
   // Distinct provinces/territories among active clients — used for the Province
   // filter on the Provincial AR page.
@@ -59,10 +81,28 @@ export async function buildWorkflowListProps(
         ).sort()
       : [];
 
-  // Income Taxes is the only list that shows the client's fiscal year-end.
-  const showFye = type === "IncomeTax";
+  // Columns shown in addition to Client, Type, the date and Status.
+  const extraColumns: ExtraColumn[] = [];
+  if (type === "IncomeTax") extraColumns.push("fye");
+  if (type === "Payroll") extraColumns.push("frequency");
+  if (type === "InfoReturn") extraColumns.push("amount");
+  if (type === "FederalAR" || type === "ProvincialAR") extraColumns.push("incorporationMonth");
 
-  return { user, config, rows, clients, allStatuses, provinces, showFye };
+  return {
+    user,
+    config,
+    rows,
+    allStatuses,
+    provinces,
+    extraColumns,
+    // Filters that only apply to one workflow.
+    showPayFrequency: type === "Payroll",
+    showFyeMonth: type === "IncomeTax",
+    showFrequency: type === "SalesTax",
+    // Sales Tax periods are shown by period end; the other workflows show the
+    // filing due date.
+    dateColumn: type === "SalesTax" ? ("periodEnd" as const) : ("filingDue" as const),
+  };
 }
 
 function formatUTC(d: Date | null, withYear = true): string {
@@ -78,10 +118,13 @@ function formatUTC(d: Date | null, withYear = true): string {
 export function WorkflowListView({
   config,
   rows,
-  clients,
   allStatuses,
   provinces,
-  showFye,
+  extraColumns,
+  showPayFrequency,
+  showFyeMonth,
+  showFrequency,
+  dateColumn,
 }: Awaited<ReturnType<typeof buildWorkflowListProps>>) {
   return (
     <div className="space-y-4">
@@ -101,10 +144,17 @@ export function WorkflowListView({
       </div>
 
       <div className="rounded-lg border border-border bg-surface p-4">
-        <WorkflowFilters clients={clients} statuses={allStatuses} slug={config.slug} provinces={provinces} />
+        <WorkflowFilters
+          statuses={allStatuses}
+          slug={config.slug}
+          provinces={provinces}
+          showFyeMonth={showFyeMonth}
+          showFrequency={showFrequency}
+          showPayFrequency={showPayFrequency}
+        />
       </div>
 
-      <WorkflowTable rows={rows} slug={config.slug} showFye={showFye} />
+      <WorkflowTable rows={rows} slug={config.slug} extraColumns={extraColumns} dateColumn={dateColumn} />
     </div>
   );
 }
@@ -141,10 +191,14 @@ export async function buildWorkflowDetailProps(
   // Look up the active interaction.
   const interaction = await getActiveInteraction(config.interactionType, obligationId);
 
-  // Project the row's fields into a plain object keyed by field name.
+  // Project the row's fields into a plain object keyed by field name. Only the
+  // fields that apply to this filing type are included. Obligation-stored
+  // fields (such as amount) come from the obligation.
+  const fieldDefs = fieldsForFilingType(config, obligation.filingType);
   const fields: Record<string, string | number | null> = {};
-  for (const f of config.fields) {
-    const v = (row as unknown as Record<string, unknown>)[f.key];
+  for (const f of fieldDefs) {
+    const source = f.storage === "obligation" ? obligation : row;
+    const v = (source as unknown as Record<string, unknown>)[f.key];
     if (v === null || v === undefined) {
       fields[f.key] = null;
     } else if (v instanceof Date) {
@@ -194,6 +248,7 @@ export async function buildWorkflowDetailProps(
     config,
     displayName,
     visibleSteps,
+    fieldDefs,
     obligation: {
       id: obligation.id,
       filingType: obligation.filingType,
@@ -222,6 +277,7 @@ export function WorkflowDetailView({
   config,
   displayName,
   visibleSteps,
+  fieldDefs,
   obligation,
   client,
   workflow,
@@ -270,7 +326,7 @@ export function WorkflowDetailView({
           displayName: config.displayName,
           shortName: config.shortName,
           allowsClientInteraction: config.allowsClientInteraction,
-          fields: config.fields,
+          fields: fieldDefs,
         }}
         visibleSteps={visibleSteps}
         obligationId={obligation.id}

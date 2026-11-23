@@ -5,6 +5,7 @@ import { encrypt, isEncryptedFormat } from "@/lib/services/crypto";
 import { writeAudit } from "@/lib/services/audit";
 import { ENTITY_TYPES } from "@/lib/obligation-matrix";
 import { JURISDICTION_CODES } from "@/lib/jurisdictions";
+import { PAY_FREQUENCIES, joinPayFrequencies } from "@/lib/payroll-frequency";
 
 export const DEFAULT_FOLDER_ITEMS = ["CRA Folder", "HST Folder", "Payroll Folder"] as const;
 
@@ -53,10 +54,7 @@ export const clientInputSchema = z.object({
   hstApplicable: z.boolean().optional(),
   hstFrequency: z.enum(["Monthly", "Quarterly", "Annual", "SelfEmployed"]).optional().nullable(),
   payrollApplicable: z.boolean().optional(),
-  payrollFrequency: z
-    .enum(["Weekly", "Bi-Weekly", "Semi-Monthly", "Monthly", "NA"])
-    .optional()
-    .nullable(),
+  payrollFrequencies: z.array(z.enum(PAY_FREQUENCIES)).optional().nullable(),
   remitterType: z
     .enum(["Monthly", "Quarterly"])
     .optional()
@@ -91,7 +89,7 @@ function buildCreateData(input: ClientInput, tenantId: string): Prisma.ClientUnc
     hstApplicable: input.hstApplicable ?? false,
     hstFrequency: input.hstApplicable ? input.hstFrequency ?? null : null,
     payrollApplicable: input.payrollApplicable ?? false,
-    payrollFrequency: input.payrollApplicable ? input.payrollFrequency ?? null : null,
+    payrollFrequency: input.payrollApplicable ? joinPayFrequencies(input.payrollFrequencies) : null,
     remitterType: input.payrollApplicable ? input.remitterType ?? null : null,
     qbOnlinePayroll: input.qbOnlinePayroll ?? false,
     onboardingStatus: input.onboardingStatus ?? "In Progress",
@@ -122,7 +120,7 @@ function buildUpdateData(input: ClientInput): Prisma.ClientUpdateInput {
     hstApplicable: input.hstApplicable ?? false,
     hstFrequency: input.hstApplicable ? input.hstFrequency ?? null : null,
     payrollApplicable: input.payrollApplicable ?? false,
-    payrollFrequency: input.payrollApplicable ? input.payrollFrequency ?? null : null,
+    payrollFrequency: input.payrollApplicable ? joinPayFrequencies(input.payrollFrequencies) : null,
     remitterType: input.payrollApplicable ? input.remitterType ?? null : null,
     qbOnlinePayroll: input.qbOnlinePayroll ?? false,
     onboardingStatus: input.onboardingStatus ?? "In Progress",
@@ -215,14 +213,22 @@ export async function updateClient(
   const clean: Prisma.ClientUpdateInput = Object.fromEntries(
     Object.entries(data).filter(([, v]) => v !== undefined)
   ) as Prisma.ClientUpdateInput;
-  const client = await prisma.client.update({
-    where: { id },
-    data: clean,
-    include: {
-      folderChecklist: { orderBy: { itemName: "asc" } },
-      historicalReviews: { orderBy: [{ fiscalYear: "desc" }, { filingType: "asc" }] },
-    },
-  });
+  let client;
+  try {
+    client = await prisma.client.update({
+      where: { id },
+      data: clean,
+      include: {
+        folderChecklist: { orderBy: { itemName: "asc" } },
+        historicalReviews: { orderBy: [{ fiscalYear: "desc" }, { filingType: "asc" }] },
+      },
+    });
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("Unique constraint") && e.message.includes("fileNumber")) {
+      throw new Error(`File number "${input.fileNumber ?? ""}" is already in use.`);
+    }
+    throw e;
+  }
   await writeAudit({
     tenantId,
     actorId,
