@@ -1,7 +1,6 @@
-export const FILING_TYPES = ["T2", "HST", "Payroll", "T4", "T4A", "T5"] as const;
 export const REVIEW_STATUSES = ["Filed", "Overdue", "OutstandingBalance", "NA"] as const;
 
-export type FilingType = (typeof FILING_TYPES)[number];
+export type ReviewGroupKey = string;
 export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
 
 /** Display label overrides for filing types — store as the canonical key, display as the label. */

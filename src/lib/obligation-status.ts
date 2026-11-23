@@ -4,6 +4,7 @@ export const OBLIGATION_STATUS_VALUES = [
   "InProgress",
   "ReadyForReview",
   "Filed/Completed",
+  "Cancelled",
 ] as const;
 
 export type ObligationStatus = (typeof OBLIGATION_STATUS_VALUES)[number];

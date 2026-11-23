@@ -26,6 +26,7 @@ const STATUS_BADGE: Record<string, string> = {
   InProgress: "bg-accent/15 text-accent",
   ReadyForReview: "bg-primary/15 text-primary",
   "Filed/Completed": "bg-success/15 text-success",
+  Cancelled: "bg-bg-subtle text-fg-muted line-through",
   Overdue: "bg-danger/15 text-danger",
 };
 
@@ -34,7 +35,7 @@ function typeLabel(t: string, jurisdiction?: string | null): string {
 }
 
 function isOverdue(due: string | null, status: string) {
-  if (status === "Filed/Completed" || status === "Completed") return false;
+  if (status === "Filed/Completed" || status === "Completed" || status === "Cancelled") return false;
   if (!due) return false;
   const d = new Date(due);
   return d.getTime() < Date.now();

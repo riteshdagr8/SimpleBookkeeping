@@ -24,6 +24,7 @@ import {
 } from "@/lib/obligation-matrix";
 import { OBLIGATION_STATUS_VALUES } from "@/lib/obligation-status";
 import { frequencyForPeriod, parsePayFrequencies } from "@/lib/payroll-frequency";
+import type { ReviewGroup } from "@/lib/review-groups";
 
 const OBLIGATION_STATUSES = OBLIGATION_STATUS_VALUES;
 
@@ -162,8 +163,11 @@ export interface ScheduleClientInput {
 export function buildScheduleRows(
   client: ScheduleClientInput,
   windowStart: Date,
-  windowEnd: Date
+  windowEnd: Date,
+  /** When given, only the filings belonging to these review groups are built. */
+  groups?: ReadonlySet<ReviewGroup>
 ): { rows: ScheduleRow[]; warnings: string[] } {
+  const groupOn = (g: ReviewGroup) => !groups || groups.has(g);
   const clientId = client.id;
   const config = clientComplianceConfig(client);
   const rows: ScheduleRow[] = [];
@@ -194,7 +198,9 @@ export function buildScheduleRows(
 
   // ---- Income tax (exactly one, by entity type) ----
   const incomeType = incomeTaxFilingType(client.entityType);
-  if (incomeType === "T2") {
+  if (!groupOn("IncomeTaxes")) {
+    // Skip the income tax section.
+  } else if (incomeType === "T2") {
     const t2 = t2Deadlines(fye, client.threeMonthEligible);
     if (inWindow(t2.filingDue)) {
       rows.push({
@@ -252,6 +258,7 @@ export function buildScheduleRows(
   // the filings: HST / GST / GST/QST / GST+PST|RST). Monthly is anchored to the
   // rolling window; other frequencies use the gstYearEnd/FYE anchor.
   if (
+    groupOn("SalesTax") &&
     client.hstApplicable &&
     client.hstFrequency &&
     HST_FREQUENCIES.includes(client.hstFrequency as (typeof HST_FREQUENCIES)[number])
@@ -283,8 +290,10 @@ export function buildScheduleRows(
   }
 
   // ---- Corporate annual returns (suppressed for non-Corporation entities) ----
-  const arTypes = annualReturnFilingTypes(config);
-  if (arTypes.includes("FederalAnnualReturn") && client.incorporationDate) {
+  const arTypesFiltered = annualReturnFilingTypes(config).filter((t) =>
+    t === "FederalAnnualReturn" ? groupOn("FederalAR") : groupOn("ProvincialAR")
+  );
+  if (arTypesFiltered.includes("FederalAnnualReturn") && client.incorporationDate) {
     const far = federalAnnualReturn(client.incorporationDate);
     if (inWindow(far.filingDue)) {
       const periodEnd = far.filingDue;
@@ -300,7 +309,7 @@ export function buildScheduleRows(
       });
     }
   }
-  if (arTypes.includes("ProvincialAnnualReturn")) {
+  if (arTypesFiltered.includes("ProvincialAnnualReturn")) {
     const due = provincialAnnualReturnDeadline(jur, fye, client.incorporationDate);
     if (due && inWindow(due)) {
       const isFyeBased = jur === "ON" || jur === "QC";
@@ -323,7 +332,7 @@ export function buildScheduleRows(
   }
 
   // ---- Info returns (entity-aware) ----
-  const infoTypes = infoReturnFilingTypes(config);
+  const infoTypes = groupOn("InformationReturns") ? infoReturnFilingTypes(config) : [];
   if (infoTypes.includes("T3Slips")) {
     const d = t3Deadlines(fye);
     if (inWindow(d.filingDue)) {
@@ -353,7 +362,7 @@ export function buildScheduleRows(
   }
 
   // ---- Employee payroll processing runs: one set per selected pay frequency ----
-  if (client.payrollApplicable) {
+  if (groupOn("Payroll") && client.payrollApplicable) {
     for (const frequency of parsePayFrequencies(client.payrollFrequency)) {
       for (const p of payrollRunPeriods(windowStart, frequency)) {
         if (!inWindow(p.filingDue)) continue;
@@ -392,7 +401,7 @@ export function buildScheduleRows(
   const hasProvincialAr = rows.some((r) => r.filingType === "ProvincialAnnualReturn");
   const needsIncDate =
     jur && jur !== "Federal" && jur !== "ON" && jur !== "QC" && !client.incorporationDate;
-  if (arTypes.includes("ProvincialAnnualReturn") && !hasProvincialAr && needsIncDate) {
+  if (arTypesFiltered.includes("ProvincialAnnualReturn") && !hasProvincialAr && needsIncDate) {
     warnings.push(
       `Provincial Annual Return for ${jur} is due from the incorporation anniversary, which requires an incorporation date. Add the incorporation date and regenerate the schedule.`
     );

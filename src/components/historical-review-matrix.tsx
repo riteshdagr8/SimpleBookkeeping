@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FILING_TYPES, FILING_TYPE_LABELS, REVIEW_STATUSES, REVIEW_STATUS_LABELS, type FilingType, type ReviewStatus } from "@/lib/review-status";
+import { REVIEW_STATUSES, REVIEW_STATUS_LABELS, type ReviewStatus } from "@/lib/review-status";
+import { REVIEW_GROUPS, REVIEW_GROUP_LABELS, type ReviewGroup } from "@/lib/review-groups";
 
 interface ReviewRow {
   id: string;
@@ -17,9 +18,11 @@ interface Props {
   years: number[];
   reviews: ReviewRow[];
   reviewComplete: boolean;
+  /** Groups that apply to this client. The rest are shown greyed out. */
+  applicableGroups: ReviewGroup[];
 }
 
-export function HistoricalReviewMatrix({ clientId, years, reviews, reviewComplete }: Props) {
+export function HistoricalReviewMatrix({ clientId, years, reviews, reviewComplete, applicableGroups }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +34,7 @@ export function HistoricalReviewMatrix({ clientId, years, reviews, reviewComplet
     return (row?.status as ReviewStatus) ?? "NA";
   }
 
-  async function setStatus(year: number, type: FilingType, status: ReviewStatus) {
+  async function setStatus(year: number, type: ReviewGroup, status: ReviewStatus) {
     const key = `${year}-${type}`;
     setSavingKey(key);
     setError(null);
@@ -71,8 +74,12 @@ export function HistoricalReviewMatrix({ clientId, years, reviews, reviewComplet
     <div className="rounded-lg border border-border bg-surface p-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-fg">Historical review (last 3 fiscal years)</h2>
-          <p className="mt-1 text-xs text-fg-muted">Mark the status of past filings for this client.</p>
+          <h2 className="text-sm font-semibold text-fg">Historical review</h2>
+          <p className="mt-1 text-xs text-fg-muted">
+            Mark the status of past filings for this client. A group marked Overdue or Outstanding Balance
+            creates that year&apos;s filings once the review is complete. Groups that don&apos;t apply to this
+            client are greyed out.
+          </p>
         </div>
         <label className="inline-flex items-center gap-2 text-sm text-fg">
           <input
@@ -91,9 +98,9 @@ export function HistoricalReviewMatrix({ clientId, years, reviews, reviewComplet
           <thead>
             <tr className="text-left text-xs text-fg-muted">
               <th className="py-2 pr-4 font-medium">Fiscal year</th>
-              {FILING_TYPES.map((t) => (
-                <th key={t} className="px-4 py-2 font-medium">
-                  {FILING_TYPE_LABELS[t] ?? t}
+              {REVIEW_GROUPS.map((g) => (
+                <th key={g} className={`px-4 py-2 font-medium ${applicableGroups.includes(g) ? "" : "text-fg-muted/50"}`}>
+                  {REVIEW_GROUP_LABELS[g]}
                 </th>
               ))}
             </tr>
@@ -102,15 +109,17 @@ export function HistoricalReviewMatrix({ clientId, years, reviews, reviewComplet
             {years.map((y) => (
               <tr key={y} className="border-t border-border">
                 <td className="py-2 pr-4 font-medium text-fg">{y}</td>
-                {FILING_TYPES.map((t) => {
-                  const status = getStatus(y, t);
-                  const key = `${y}-${t}`;
+                {REVIEW_GROUPS.map((g) => {
+                  const applies = applicableGroups.includes(g);
+                  const status = getStatus(y, g);
+                  const key = `${y}-${g}`;
                   return (
-                    <td key={t} className="px-4 py-2">
+                    <td key={g} className="px-4 py-2">
                       <select
                         value={status}
-                        onChange={(e) => setStatus(y, t, e.target.value as ReviewStatus)}
-                        disabled={pending && savingKey === key}
+                        onChange={(e) => setStatus(y, g, e.target.value as ReviewStatus)}
+                        disabled={!applies || (pending && savingKey === key)}
+                        title={applies ? undefined : "This group does not apply to this client"}
                         className="rounded-md border border-border bg-bg-subtle px-2 py-1 text-sm text-fg focus:border-ring focus:ring-2 focus:ring-ring/30"
                       >
                         {REVIEW_STATUSES.map((s) => (

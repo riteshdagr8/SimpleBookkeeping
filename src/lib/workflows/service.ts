@@ -126,7 +126,7 @@ export async function updateWorkflow(
   // type's fields apply.
   const obligation = await prisma.filingObligation.findFirst({
     where: { id: obligationId, client: { tenantId } },
-    select: { id: true, clientId: true, filingType: true, amount: true },
+    select: { id: true, clientId: true, filingType: true, amount: true, status: true },
   });
   if (!obligation) throw new Error("Obligation not found");
 
@@ -169,7 +169,7 @@ export async function updateWorkflow(
     const v = input.fields[f.key];
     obligationData[f.key] = v === undefined || v === null || v === "" ? null : Number(v);
   }
-  const obligationChanged = Object.keys(obligationData).some(
+  let obligationChanged = Object.keys(obligationData).some(
     (k) => obligationData[k] !== (obligation as unknown as Record<string, unknown>)[k]
   );
 
@@ -200,6 +200,15 @@ export async function updateWorkflow(
     }
   }
 
+  // Keep the obligation's own status in step with the workflow, so every view
+  // (dashboard, monitoring, schedule) agrees on what is done. The workflow's
+  // final status is its last statusByStep entry. A cancelled obligation stays
+  // cancelled until the review reopens it.
+  const workflowDone = newStatus === config.statusByStep[config.statusByStep.length - 1];
+  if (workflowDone && obligation.status !== "Filed/Completed" && obligation.status !== "Cancelled") {
+    obligationData.status = "Filed/Completed";
+    obligationChanged = true;
+  }
   if (obligationChanged) {
     await prisma.filingObligation.update({ where: { id: obligationId }, data: obligationData });
   }

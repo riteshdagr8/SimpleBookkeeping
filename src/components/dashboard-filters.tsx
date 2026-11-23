@@ -3,12 +3,13 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 
-const STATUSES = ["all", "Pending", "InProgress", "Completed", "WaitingOnClient"] as const;
+const STATUSES = ["all", "Pending", "InProgress", "Completed", "Cancelled", "WaitingOnClient"] as const;
 
 const STATUS_LABELS: Record<string, string> = {
   all: "All",
   Pending: "Pending",
   InProgress: "In Progress",
+  Cancelled: "Cancelled",
   Completed: "Completed",
   WaitingOnClient: "Waiting on Client",
 };

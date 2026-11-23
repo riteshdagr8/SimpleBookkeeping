@@ -3,16 +3,17 @@ import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
-  FILING_TYPES,
   REVIEW_STATUSES,
   ensureReviewRows,
+  syncClientReview,
   upsertReview,
 } from "@/lib/services/reviews";
+import { REVIEW_GROUPS } from "@/lib/review-groups";
 import { setReviewComplete } from "@/lib/services/clients";
 
 const putSchema = z.object({
   fiscalYear: z.number().int(),
-  filingType: z.enum(FILING_TYPES),
+  filingType: z.enum(REVIEW_GROUPS),
   status: z.enum(REVIEW_STATUSES),
   notes: z.string().max(500).optional().nullable(),
 });
@@ -37,14 +38,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   if (reviewParsed.success) {
     const r = await upsertReview(user.tenantId, user.id, id, reviewParsed.data);
     if (!r) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json({ review: r });
+    return NextResponse.json({ review: r.review, sync: r.sync });
   }
 
   const completeParsed = reviewCompleteSchema.safeParse(body);
   if (completeParsed.success) {
     const ok = await setReviewComplete(user.tenantId, user.id, id, completeParsed.data.reviewComplete);
     if (!ok) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json({ reviewComplete: completeParsed.data.reviewComplete });
+    // Marking the review complete applies every Overdue / Outstanding Balance
+    // cell at once.
+    const sync = completeParsed.data.reviewComplete
+      ? await syncClientReview(user.tenantId, user.id, id)
+      : null;
+    return NextResponse.json({ reviewComplete: completeParsed.data.reviewComplete, sync });
   }
 
   return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
