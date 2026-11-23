@@ -17,7 +17,8 @@ import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/services/audit";
 import { utc } from "@/lib/compliance-rules";
 import { buildScheduleRows, type ScheduleClientInput } from "@/lib/services/obligations";
-import type { ReviewGroup } from "@/lib/review-groups";
+import { filingTypesForReviewGroup, type ReviewGroup } from "@/lib/review-groups";
+import { clientComplianceConfig } from "@/lib/services/obligations";
 
 /** The fiscal-year window ending in calendar year `year`. */
 export function fiscalYearWindow(fye: Date, year: number): { start: Date; end: Date } {
@@ -124,12 +125,16 @@ export async function syncReviewYear(
     }
   } else {
     // The review no longer asks for this year's filings: cancel the rows it
-    // created, so nothing disappears and any recorded work stays visible.
-    const cancelled = await prisma.filingObligation.updateMany({
-      where: { clientId: client.id, reviewYear: year, status: "Pending" },
-      data: { status: "Cancelled" },
-    });
-    result.cancelled = cancelled.count;
+    // created for THESE groups only, so nothing disappears and any recorded
+    // work stays visible. Rows for other groups' cells are untouched.
+    const types = [...groups].flatMap((g) => filingTypesForReviewGroup(clientComplianceConfig(client), g));
+    if (types.length > 0) {
+      const cancelled = await prisma.filingObligation.updateMany({
+        where: { clientId: client.id, reviewYear: year, status: "Pending", filingType: { in: types } },
+        data: { status: "Cancelled" },
+      });
+      result.cancelled = cancelled.count;
+    }
   }
 
   if (result.created || result.reopened || result.cancelled) {

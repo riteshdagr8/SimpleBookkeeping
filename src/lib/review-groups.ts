@@ -7,8 +7,34 @@
  * values (T2, HST, Payroll, T4, T4A, T5) are mapped to a group on read.
  */
 
-import { annualReturnFilingTypes, salesTaxFilingTypes } from "./obligation-matrix";
+import {
+  annualReturnFilingTypes,
+  incomeTaxFilingType,
+  infoReturnFilingTypes,
+  salesTaxFilingTypes,
+} from "./obligation-matrix";
 import type { ComplianceConfig } from "./obligation-matrix";
+
+/**
+ * The filing types a review group covers for a client, from its settings.
+ * Used to scope cancellation to the group whose review cell changed.
+ */
+export function filingTypesForReviewGroup(config: ComplianceConfig, group: ReviewGroup): string[] {
+  switch (group) {
+    case "IncomeTaxes":
+      return [incomeTaxFilingType(config.entityType)];
+    case "SalesTax":
+      return salesTaxFilingTypes(config.incorporationJurisdiction);
+    case "Payroll":
+      return ["PayrollProcessing"];
+    case "FederalAR":
+      return annualReturnFilingTypes(config).filter((t) => t === "FederalAnnualReturn");
+    case "ProvincialAR":
+      return annualReturnFilingTypes(config).filter((t) => t === "ProvincialAnnualReturn");
+    case "InformationReturns":
+      return infoReturnFilingTypes(config);
+  }
+}
 
 export const REVIEW_GROUPS = [
   "IncomeTaxes",
